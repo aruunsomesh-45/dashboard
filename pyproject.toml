@@ -1,3 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "125east"
+version = "0.1.0"
+description = "125 East Commerce Intelligence Platform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
+exclude = [
+    "e2e*",
+    "frontend*",
+    "infra*",
+    "supabase*",
+    "testsprite_tests*",
+    "APIs*",
+    "appflow*",
+    "tests*",
+    "docs*",
+    "scripts*",
+    "backups*",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
