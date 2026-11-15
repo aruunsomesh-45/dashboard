@@ -155,7 +155,7 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
     # Rate limiting. Views opt in with `throttle_scope = "<scope>"` (ScopedRateThrottle).
-    # Counters live in the Django cache: use Redis (REDIS_URL) in production so limits are shared across workers.
+    # Counters live in the Django cache (LocMemCache).
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="10/min"),
@@ -175,27 +175,20 @@ SPECTACULAR_SETTINGS = {
 # Security and routing
 APPEND_SLASH = False
 
-# Cache & Session Configuration
-REDIS_URL = env("REDIS_URL", default="")
-if REDIS_URL and not REDIS_URL.startswith("none"):
-    CACHES = {
-        "default": {
-            "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": REDIS_URL,
-            "OPTIONS": {
-                "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            },
-        }
+# Cache & Session Configuration (In-memory LocMemCache & DB sessions; no Redis required)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "125east-cache",
     }
-    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-    SESSION_CACHE_ALIAS = "default"
-else:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        }
-    }
-    SESSION_ENGINE = "django.contrib.sessions.backends.db"
+}
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+# Celery Configuration (runs tasks synchronously in-process without an external broker)
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days max
