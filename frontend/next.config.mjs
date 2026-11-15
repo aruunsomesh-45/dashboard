@@ -3,6 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   async rewrites() {
     const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:8001";
     return [
