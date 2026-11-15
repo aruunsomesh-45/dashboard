@@ -17,7 +17,7 @@ from apps.commerce.models import CanonicalShipmentStatus, Order, PaymentAttempt,
 from apps.integrations.crypto import encrypt_credentials
 from apps.integrations.models import Integration
 from apps.tenancy.models import Brand, Workspace, WorkspaceMember
-from tests.conftest import User
+from tests.conftest import User, make_token
 
 SECRET_MARKERS = ["B-SECRET-ORDER-777", "B-SECRET-AWB-999", "pay_B_SECRET_1", "B Secret Brand", "b-secret-shop"]
 
@@ -59,6 +59,8 @@ def routes(ws, brand, awb, alert):
         ("brand-list-create", "GET", f"/api/w/{ws}/brands/", None),
         ("brand-list-create", "POST", f"/api/w/{ws}/brands/", {"name": "Injected"}),
         ("workspace-members", "GET", f"/api/w/{ws}/members/", None),
+        ("workspace-member-detail", "PATCH", f"/api/w/{ws}/members/{uuid.uuid4()}/", {"role": "viewer"}),
+        ("workspace-member-detail", "DELETE", f"/api/w/{ws}/members/{uuid.uuid4()}/", None),
         ("workspace-invites", "POST", f"/api/w/{ws}/invites/", {"email": "evil@x.test", "role": "owner"}),
         ("workspace-alerts-list", "GET", f"/api/w/{ws}/alerts/", None),
         ("alert-acknowledge", "POST", f"/api/w/{ws}/alerts/{alert}/acknowledge/", None),
@@ -196,7 +198,9 @@ class TestNdrCrossBrandAwbCollision:
         Integration.objects.create(workspace=wa, brand=ba, provider="delhivery", status="connected",
                                    encrypted_credentials=encrypt_credentials({"api_token": "tok"}))
         with mock.patch("apps.integrations.delhivery.client.DelhiveryClient._post", return_value={"ok": 1}):
-            res = client_for(world["ua"]).post(
+            c = client_for(world["ua"])
+            c.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(world['ua'], aal='aal2')}")
+            res = c.post(
                 f"/api/w/{wa.slug}/b/{ba.id}/logistics/ndr/{mine.awb}/action/", {"action": "reattempt"}, format="json")
         assert res.status_code == 200
         assert Shipment.objects.get(id=mine.id).canonical_status == "in_transit"

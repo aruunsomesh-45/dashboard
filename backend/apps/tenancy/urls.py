@@ -25,6 +25,7 @@ from .views import (
     BrandListCreateView,
     InviteAcceptView,
     InviteCreateView,
+    MemberDetailView,
     MemberListView,
     WorkspaceDetailView,
     WorkspaceListCreateView,
@@ -122,5 +123,10 @@ urlpatterns = [
     re_path(r"^(?P<workspace_slug>[-\w]+)/?$", WorkspaceDetailView.as_view(), name="workspace-detail"),
     re_path(r"^(?P<workspace_slug>[-\w]+)/brands/?$", BrandListCreateView.as_view(), name="brand-list-create"),
     re_path(r"^(?P<workspace_slug>[-\w]+)/members/?$", MemberListView.as_view(), name="workspace-members"),
+    re_path(
+        r"^(?P<workspace_slug>[-\w]+)/members/(?P<member_id>[0-9a-f-]+)/?$",
+        MemberDetailView.as_view(),
+        name="workspace-member-detail",
+    ),
     re_path(r"^(?P<workspace_slug>[-\w]+)/invites/?$", InviteCreateView.as_view(), name="workspace-invites"),
 ]

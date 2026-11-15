@@ -75,6 +75,25 @@ class BrandIntegrationListView(APIView):
                 "api_secret": (credentials.get("webhook_secret") or credentials.get("api_secret") or "").strip(),
             }
 
+        # Enforce plan limits on Starter: max 2 connected integrations
+        from apps.tenancy.models import Workspace
+        if request.tenant.workspace.plan == Workspace.Plan.STARTER:
+            already_connected = Integration.objects.filter(
+                workspace=request.tenant.workspace,
+                provider=provider,
+                status=Integration.Status.CONNECTED,
+            ).exists()
+            if not already_connected:
+                connected_count = Integration.objects.filter(
+                    workspace=request.tenant.workspace,
+                    status=Integration.Status.CONNECTED,
+                ).count()
+                if connected_count >= 2:
+                    return Response(
+                        {"error": "Starter plan is limited to 2 active integrations. Upgrade to connect more."},
+                        status=status.HTTP_402_PAYMENT_REQUIRED,
+                    )
+
         encrypted = encrypt_credentials(credentials)
         integration, _ = Integration.objects.update_or_create(
             brand=brand,

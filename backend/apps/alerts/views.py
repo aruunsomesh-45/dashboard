@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 
 from apps.alerts.models import Alert
 from apps.alerts.serializers import AlertSerializer
-from apps.tenancy.permissions import HasTenantAccess
+from apps.tenancy.permissions import HasTenantAccess, IsWorkspaceAnalyst
 
 
 class WorkspaceAlertListView(APIView):
@@ -35,10 +35,10 @@ class WorkspaceAlertListView(APIView):
 class AlertAcknowledgeView(APIView):
     """
     POST /api/w/{workspace_slug}/alerts/{alert_id}/acknowledge/
-    Marks an alert as acknowledged by current user.
+    Marks an alert as acknowledged by current user (Analyst or above).
     """
 
-    permission_classes = [HasTenantAccess]
+    permission_classes = [IsWorkspaceAnalyst]
 
     def post(self, request, workspace_slug, alert_id):
         try:
@@ -47,6 +47,9 @@ class AlertAcknowledgeView(APIView):
                 workspace=request.tenant.workspace,
             )
         except Alert.DoesNotExist:
+            return Response({"error": "Alert not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.tenant.allowed_brand_ids is not None and alert.brand_id not in request.tenant.allowed_brand_ids:
             return Response({"error": "Alert not found."}, status=status.HTTP_404_NOT_FOUND)
 
         alert.status = Alert.Status.ACKNOWLEDGED
@@ -60,10 +63,10 @@ class AlertAcknowledgeView(APIView):
 class AlertResolveView(APIView):
     """
     POST /api/w/{workspace_slug}/alerts/{alert_id}/resolve/
-    Resolves an open alert.
+    Resolves an open alert (Analyst or above).
     """
 
-    permission_classes = [HasTenantAccess]
+    permission_classes = [IsWorkspaceAnalyst]
 
     def post(self, request, workspace_slug, alert_id):
         try:
@@ -72,6 +75,9 @@ class AlertResolveView(APIView):
                 workspace=request.tenant.workspace,
             )
         except Alert.DoesNotExist:
+            return Response({"error": "Alert not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.tenant.allowed_brand_ids is not None and alert.brand_id not in request.tenant.allowed_brand_ids:
             return Response({"error": "Alert not found."}, status=status.HTTP_404_NOT_FOUND)
 
         alert.status = Alert.Status.RESOLVED

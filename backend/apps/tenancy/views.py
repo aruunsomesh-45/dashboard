@@ -3,6 +3,7 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
+from django.http import Http404
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import status
@@ -12,7 +13,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
-from .models import AuditLog, Brand, Invite, Workspace, WorkspaceMember
+from .models import AuditLog, Brand, BrandMember, Invite, Workspace, WorkspaceMember
 from .permissions import (
     HasTenantAccess,
     IsWorkspaceAdmin,
@@ -34,7 +35,7 @@ class WorkspaceListCreateView(APIView):
 
     def get(self, request):
         user = self.get_user(request)
-        if not user:
+        if not user or not user.is_authenticated:
             return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
 
         memberships = (
@@ -47,6 +48,12 @@ class WorkspaceListCreateView(APIView):
         for m in memberships:
             ws_data = WorkspaceSerializer(m.workspace).data
             ws_data["role"] = m.role
+
+            brands = m.workspace.brands.all()
+            user_brands = BrandMember.objects.filter(brand__workspace=m.workspace, user=user).values_list("brand_id", flat=True)
+            if user_brands.exists():
+                brands = brands.filter(id__in=user_brands)
+
             ws_data["brands"] = [
                 {
                     "id": str(b.id),
@@ -54,7 +61,7 @@ class WorkspaceListCreateView(APIView):
                     "currency": b.currency,
                     "timezone": b.timezone,
                 }
-                for b in m.workspace.brands.all()
+                for b in brands
             ]
             data.append(ws_data)
 
@@ -62,7 +69,7 @@ class WorkspaceListCreateView(APIView):
 
     def post(self, request):
         user = self.get_user(request)
-        if not user:
+        if not user or not user.is_authenticated:
             return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
 
         raw_name = request.data.get("name")
@@ -78,7 +85,7 @@ class WorkspaceListCreateView(APIView):
             slug = f"{base_slug}-{counter}"
             counter += 1
 
-        workspace = Workspace.objects.create(name=name, slug=slug)
+        workspace = Workspace.objects.create(name=name, slug=slug, plan=Workspace.Plan.STARTER)
 
         # Creator is Owner
         WorkspaceMember.objects.create(workspace=workspace, user=user, role=WorkspaceMember.Role.OWNER)
@@ -107,7 +114,7 @@ class WorkspaceListCreateView(APIView):
 
 class WorkspaceDetailView(APIView):
     def get_permissions(self):
-        # Deleting a workspace is destructive: owners only (previously any member, even viewers, could).
+        # Deleting a workspace is destructive: owners only
         if self.request.method == "DELETE":
             return [IsWorkspaceOwner()]
         return [HasTenantAccess()]
@@ -146,6 +153,14 @@ class BrandListCreateView(APIView):
         return Response(BrandSerializer(brands, many=True).data)
 
     def post(self, request, workspace_slug):
+        # Enforce plan limits on Starter: 1 brand maximum
+        if request.tenant.workspace.plan == Workspace.Plan.STARTER:
+            if Brand.objects.filter(workspace=request.tenant.workspace).count() >= 1:
+                return Response(
+                    {"error": "Starter plan is limited to 1 brand. Upgrade to Growth or Enterprise to add more brands."},
+                    status=status.HTTP_402_PAYMENT_REQUIRED,
+                )
+
         serializer = BrandSerializer(data=request.data)
         if serializer.is_valid():
             brand = serializer.save(workspace=request.tenant.workspace)
@@ -167,6 +182,94 @@ class MemberListView(APIView):
         return Response(WorkspaceMemberSerializer(members, many=True).data)
 
 
+class MemberDetailView(APIView):
+    def get_permissions(self):
+        if self.request.method in ("PATCH", "DELETE"):
+            return [IsWorkspaceAdmin()]
+        return [HasTenantAccess()]
+
+    def get_member(self, request, workspace_slug, member_id):
+        try:
+            return WorkspaceMember.objects.select_related("user").get(
+                id=member_id,
+                workspace=request.tenant.workspace,
+            )
+        except (WorkspaceMember.DoesNotExist, ValueError):
+            raise Http404("Member not found.")
+
+    def patch(self, request, workspace_slug, member_id):
+        target_member = self.get_member(request, workspace_slug, member_id)
+
+        new_role = request.data.get("role")
+        if not new_role or new_role not in WorkspaceMember.Role.values:
+            return Response({"error": f"Invalid role: {new_role}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Last remaining owner cannot be demoted (returns 409 Conflict)
+        if target_member.role == WorkspaceMember.Role.OWNER and new_role != WorkspaceMember.Role.OWNER:
+            owners_count = WorkspaceMember.objects.filter(
+                workspace=request.tenant.workspace,
+                role=WorkspaceMember.Role.OWNER,
+            ).count()
+            if owners_count <= 1:
+                return Response({"error": "Cannot demote the last owner of a workspace."}, status=status.HTTP_409_CONFLICT)
+
+        # Nobody can change their own role
+        if target_member.user_id == request.user.id:
+            return Response({"error": "Cannot change your own role."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Admin cannot promote anyone to owner
+        if request.tenant.role == WorkspaceMember.Role.ADMIN and new_role == WorkspaceMember.Role.OWNER:
+            return Response({"error": "Admins cannot promote anyone to owner."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Admin cannot demote an owner
+        if request.tenant.role == WorkspaceMember.Role.ADMIN and target_member.role == WorkspaceMember.Role.OWNER:
+            return Response({"error": "Admins cannot change an owner's role."}, status=status.HTTP_403_FORBIDDEN)
+
+        target_member.role = new_role
+        target_member.save(update_fields=["role"])
+
+        AuditLog.objects.create(
+            workspace=request.tenant.workspace,
+            actor=request.user,
+            action="member_role_updated",
+            target=target_member.user.email,
+            metadata={"new_role": new_role},
+        )
+
+        return Response(WorkspaceMemberSerializer(target_member).data, status=status.HTTP_200_OK)
+
+    def delete(self, request, workspace_slug, member_id):
+        target_member = self.get_member(request, workspace_slug, member_id)
+
+        # Last remaining owner cannot be removed (returns 409 Conflict)
+        if target_member.role == WorkspaceMember.Role.OWNER:
+            owners_count = WorkspaceMember.objects.filter(
+                workspace=request.tenant.workspace,
+                role=WorkspaceMember.Role.OWNER,
+            ).count()
+            if owners_count <= 1:
+                return Response({"error": "Cannot remove the last owner of a workspace."}, status=status.HTTP_409_CONFLICT)
+
+        # Nobody can remove themselves via this endpoint
+        if target_member.user_id == request.user.id:
+            return Response({"error": "Cannot remove yourself from the workspace."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Admin cannot remove an owner
+        if request.tenant.role == WorkspaceMember.Role.ADMIN and target_member.role == WorkspaceMember.Role.OWNER:
+            return Response({"error": "Admins cannot remove an owner."}, status=status.HTTP_403_FORBIDDEN)
+
+        target_member.delete()
+
+        AuditLog.objects.create(
+            workspace=request.tenant.workspace,
+            actor=request.user,
+            action="member_removed",
+            target=target_member.user.email,
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class InviteCreateView(APIView):
     permission_classes = [IsWorkspaceAdmin]
 
@@ -183,16 +286,30 @@ class InviteCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Admin cannot invite owner
+        if request.tenant.role == WorkspaceMember.Role.ADMIN and role == WorkspaceMember.Role.OWNER:
+            return Response({"error": "Admins cannot invite owners."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check plan limits: Starter plan limited to 3 members (pending invites count)
+        if request.tenant.workspace.plan == Workspace.Plan.STARTER:
+            current_members = WorkspaceMember.objects.filter(workspace=request.tenant.workspace).count()
+            pending_invites = Invite.objects.filter(workspace=request.tenant.workspace, accepted_at__isnull=True).count()
+            if current_members + pending_invites >= 3:
+                return Response(
+                    {"error": "Starter plan is limited to 3 members (including pending invites). Upgrade your plan to invite more."},
+                    status=status.HTTP_402_PAYMENT_REQUIRED,
+                )
+
         # Check if already a member
         if WorkspaceMember.objects.filter(workspace=request.tenant.workspace, user__email=email).exists():
             return Response(
                 {"error": "User is already a member of this workspace."}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Generate single-use token and store hash
+        # Generate single-use token and store hash (expires in 7 days)
         raw_token = secrets.token_urlsafe(32)
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-        expires_at = timezone.now() + timedelta(hours=72)
+        expires_at = timezone.now() + timedelta(days=7)
 
         # Invalidate any prior active invite for this email
         Invite.objects.filter(workspace=request.tenant.workspace, email=email, accepted_at__isnull=True).delete()
@@ -237,6 +354,10 @@ class InviteAcceptView(APIView):
             invite = Invite.objects.get(token_hash=token_hash, accepted_at__isnull=True)
         except Invite.DoesNotExist:
             return Response({"error": "Invalid or already accepted invite token."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure accepting user's email matches the invited email
+        if invite.email.strip().lower() != request.user.email.strip().lower():
+            return Response({"error": "This invite was sent to a different email address."}, status=status.HTTP_404_NOT_FOUND)
 
         if invite.is_expired():
             return Response({"error": "This invite link has expired."}, status=status.HTTP_400_BAD_REQUEST)

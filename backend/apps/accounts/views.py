@@ -86,6 +86,7 @@ class LoginView(APIView):
         # Full login
         auth_login(request, user)
         request.session.cycle_key()  # Rotate session ID to protect against session fixation
+        request.session["mfa_verified"] = False
 
         # Build list of user's workspaces
         memberships = WorkspaceMember.objects.filter(user=user, workspace__is_active=True).select_related("workspace")
@@ -147,7 +148,9 @@ class MFAChallengeView(APIView):
         # Complete login
         auth_login(request, user)
         request.session.cycle_key()
-        del request.session["pre_mfa_user_id"]
+        if "pre_mfa_user_id" in request.session:
+            del request.session["pre_mfa_user_id"]
+        request.session["mfa_verified"] = True
 
         memberships = WorkspaceMember.objects.filter(user=user, workspace__is_active=True).select_related("workspace")
         workspaces_data = [
@@ -213,7 +216,9 @@ class MFAConfirmView(APIView):
         user.mfa_secret = secret
         user.mfa_enabled = True
         user.save(update_fields=["mfa_secret", "mfa_enabled"])
-        del request.session["pending_mfa_secret"]
+        if "pending_mfa_secret" in request.session:
+            del request.session["pending_mfa_secret"]
+        request.session["mfa_verified"] = True
 
         # Generate recovery codes
         recovery_codes = generate_recovery_codes(user)
@@ -243,6 +248,7 @@ class MeView(APIView):
         if not user or not user.is_authenticated:
             return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
 
+        from apps.tenancy.models import BrandMember
         memberships = (
             WorkspaceMember.objects.filter(user=user, workspace__is_active=True)
             .select_related("workspace")
@@ -251,6 +257,11 @@ class MeView(APIView):
 
         workspaces_data = []
         for m in memberships:
+            brands = m.workspace.brands.all()
+            user_brands = BrandMember.objects.filter(brand__workspace=m.workspace, user=user).values_list("brand_id", flat=True)
+            if user_brands.exists():
+                brands = brands.filter(id__in=user_brands)
+
             workspaces_data.append(
                 {
                     "id": str(m.workspace.id),
@@ -264,7 +275,7 @@ class MeView(APIView):
                             "currency": b.currency,
                             "timezone": b.timezone,
                         }
-                        for b in m.workspace.brands.all()
+                        for b in brands
                     ],
                 }
             )

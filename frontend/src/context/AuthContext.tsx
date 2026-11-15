@@ -3,6 +3,15 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { User, Workspace, Brand, UserRole } from "@/types/auth";
 import { supabase } from "@/lib/supabaseClient";
+import { firebaseAuth, googleAuthProvider } from "@/lib/firebaseClient";
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onIdTokenChanged,
+  User as FirebaseUser,
+} from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { ensureCsrf, apiFetch } from "@/lib/api";
 import { loginUrlFor, safeNextPath } from "@/lib/authRedirect";
@@ -18,6 +27,8 @@ interface AuthContextType {
   setCurrentBrand: (brand: Brand) => void;
   refreshAuth: () => Promise<void>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithOtp: (email: string) => Promise<{ error: Error | null }>;
   verifyOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
   logout: () => Promise<void>;
@@ -43,18 +54,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname === "/auth/callback" ||
     pathname.startsWith("/invites");
 
-  // Load workspace and user profile given a Supabase session
-  const loadUserData = useCallback(async (sessionUserId: string, email: string) => {
+  // Load workspace and user profile given a user ID & email
+  const loadUserData = useCallback(async (userId: string, email: string) => {
     try {
-      // 1. Fetch user profile from public.accounts_user
+      // 1. Fetch user profile from Supabase or Django /api/auth/me
+      let resolvedUser: User | null = null;
+      try {
+        const meData = await apiFetch<any>("/api/auth/me");
+        if (meData?.user) {
+          resolvedUser = meData.user;
+          if (Array.isArray(meData.workspaces) && meData.workspaces.length > 0) {
+            setWorkspaces(meData.workspaces);
+            const activeWs = currentWorkspace
+              ? meData.workspaces.find((w: any) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || meData.workspaces[0]
+              : meData.workspaces[0];
+            setCurrentWorkspace(activeWs);
+
+            if (activeWs.brands && activeWs.brands.length > 0) {
+              const activeBrand = currentBrand
+                ? activeWs.brands.find((b: any) => b.id === currentBrand.id) || activeWs.brands[0]
+                : activeWs.brands[0];
+              setCurrentBrand(activeBrand);
+            }
+            setUser(resolvedUser);
+            return;
+          }
+        }
+      } catch {
+        // Fallback to direct DB query if Django me endpoint was unreachable
+      }
+
       const { data: profile } = await supabase
         .from("accounts_user")
         .select("id, email, first_name, last_name, mfa_enabled, created_at")
-        .eq("id", sessionUserId)
+        .eq("email", email)
         .single();
 
-      const resolvedUser: User = {
-        id: sessionUserId,
+      resolvedUser = {
+        id: profile?.id || userId,
         email: profile?.email || email,
         first_name: profile?.first_name || "",
         last_name: profile?.last_name || "",
@@ -74,15 +111,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             slug
           )
         `)
-        .eq("user_id", sessionUserId);
+        .eq("user_id", resolvedUser.id);
 
       if (!memberErr && memberRows && memberRows.length > 0) {
         const loadedWorkspaces: Workspace[] = [];
 
         for (const row of memberRows as any[]) {
           if (!row.workspace) continue;
-          
-          // Fetch brands for this workspace
+
           const { data: brandRows } = await supabase
             .from("tenancy_brand")
             .select("id, name, currency, timezone")
@@ -101,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (loadedWorkspaces.length > 0) {
           const activeWs = currentWorkspace
-            ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id) || loadedWorkspaces[0]
+            ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || loadedWorkspaces[0]
             : loadedWorkspaces[0];
           setCurrentWorkspace(activeWs);
 
@@ -113,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        // Fallback to Django API /api/w for local development / SQLite
+        // Fallback to Django API /api/w
         try {
           const wsList = await apiFetch<any[]>("/api/w");
           if (Array.isArray(wsList) && wsList.length > 0) {
@@ -126,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }));
             setWorkspaces(loadedWorkspaces);
             const activeWs = currentWorkspace
-              ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id) || loadedWorkspaces[0]
+              ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || loadedWorkspaces[0]
               : loadedWorkspaces[0];
             setCurrentWorkspace(activeWs);
             if (activeWs.brands && activeWs.brands.length > 0) {
@@ -147,41 +183,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshAuth = useCallback(async () => {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.user) {
-        // Fallback to Django /api/auth/me in development
-        try {
-          const meData = await apiFetch<any>("/api/auth/me");
-          if (meData?.user) {
-            setUser(meData.user);
-            if (meData.workspaces && meData.workspaces.length > 0) {
-              setWorkspaces(meData.workspaces);
-              const activeWs = currentWorkspace
-                ? meData.workspaces.find((w: any) => w.id === currentWorkspace.id) || meData.workspaces[0]
-                : meData.workspaces[0];
-              setCurrentWorkspace(activeWs);
-              if (activeWs.brands && activeWs.brands.length > 0) {
-                const activeBrand = currentBrand
-                  ? activeWs.brands.find((b: any) => b.id === currentBrand.id) || activeWs.brands[0]
-                  : activeWs.brands[0];
-                setCurrentBrand(activeBrand);
-              }
-            }
-            return;
-          }
-        } catch {}
-
-        setUser(null);
-        setWorkspaces([]);
-        setCurrentWorkspace(null);
-        setCurrentBrand(null);
-        if (!isPublicRoute) {
-          router.replace(loginUrlFor(pathname));
-        }
+      // Check Firebase auth first
+      if (firebaseAuth.currentUser) {
+        await loadUserData(firebaseAuth.currentUser.uid, firebaseAuth.currentUser.email || "");
         return;
       }
 
-      await loadUserData(session.user.id, session.user.email || "");
+      // Check Supabase session
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserData(session.user.id, session.user.email || "");
+        return;
+      }
+
+      // Fallback to Django session /api/auth/me
+      try {
+        const meData = await apiFetch<any>("/api/auth/me");
+        if (meData?.user) {
+          setUser(meData.user);
+          if (meData.workspaces && meData.workspaces.length > 0) {
+            setWorkspaces(meData.workspaces);
+            const activeWs = currentWorkspace
+              ? meData.workspaces.find((w: any) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || meData.workspaces[0]
+              : meData.workspaces[0];
+            setCurrentWorkspace(activeWs);
+            if (activeWs.brands && activeWs.brands.length > 0) {
+              const activeBrand = currentBrand
+                ? activeWs.brands.find((b: any) => b.id === currentBrand.id) || activeWs.brands[0]
+                : activeWs.brands[0];
+              setCurrentBrand(activeBrand);
+            }
+          }
+          return;
+        }
+      } catch {}
+
+      setUser(null);
+      setWorkspaces([]);
+      setCurrentWorkspace(null);
+      setCurrentBrand(null);
+      if (!isPublicRoute) {
+        router.replace(loginUrlFor(pathname));
+      }
     } catch {
       setUser(null);
       if (!isPublicRoute) {
@@ -190,17 +233,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isPublicRoute, loadUserData, router, pathname]);
+  }, [isPublicRoute, loadUserData, router, pathname, currentWorkspace, currentBrand]);
 
   useEffect(() => {
     ensureCsrf();
     refreshAuth();
 
-    // Listen to Supabase Auth state changes (OAuth redirects, token refresh, logout)
+    // Listen to Firebase ID token changes
+    const unsubscribeFirebase = onIdTokenChanged(firebaseAuth, async (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        await loadUserData(fbUser.uid, fbUser.email || "");
+        if (pathname === "/login" || pathname === "/register") {
+          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.push(next);
+        }
+      }
+    });
+
+    // Listen to Supabase Auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // Never await Supabase calls directly inside this callback (it holds the auth
-        // lock); defer to the next tick instead.
         if (event === "SIGNED_IN" && session?.user) {
           const uid = session.user.id;
           const mail = session.user.email || "";
@@ -217,26 +269,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setCurrentWorkspace(null);
           setCurrentBrand(null);
           if (!isPublicRoute) {
-            // Session ended without an explicit logout (expired / revoked refresh token).
             router.replace(loginUrlFor(pathname, explicitLogout.current ? undefined : "expired"));
             explicitLogout.current = false;
           }
-        } else if (event === "TOKEN_REFRESHED" && session?.user) {
-          const uid = session.user.id;
-          const mail = session.user.email || "";
-          setTimeout(() => { loadUserData(uid, mail); }, 0);
         }
       }
     );
 
     return () => {
+      unsubscribeFirebase();
       subscription.unsubscribe();
     };
-  }, [pathname]);
+  }, [pathname, loadUserData, refreshAuth, isPublicRoute, router]);
 
-  // A. Google OAuth Sign-In
+  // Firebase / Google OAuth Sign-In
   const signInWithGoogle = async () => {
     try {
+      try {
+        const cred = await signInWithPopup(firebaseAuth, googleAuthProvider);
+        if (cred.user) {
+          await loadUserData(cred.user.uid, cred.user.email || "");
+          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.push(next);
+          return { error: null };
+        }
+      } catch (fbErr: any) {
+        console.warn("Firebase Google popup fallback to Supabase OAuth:", fbErr);
+      }
+
+      // Fallback to Supabase OAuth
       const origin = window.location.origin;
       const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
       const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
@@ -244,11 +305,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         provider: "google",
         options: {
           redirectTo: `${origin}/auth/callback${nextQuery}`,
-          queryParams: {
-            // Identity only: no offline refresh token is needed (we never call Google APIs),
-            // and select_account avoids silently reusing the wrong Google session.
-            prompt: "select_account",
-          },
+          queryParams: { prompt: "select_account" },
         },
       });
       return { error: error ? new Error(friendlyAuthError(error)) : null };
@@ -257,7 +314,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // B. Email OTP Sign-In Request
+  // Firebase Email/Password Sign-In
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      const cred = await signInWithEmailAndPassword(firebaseAuth, email.trim().toLowerCase(), password);
+      if (cred.user) {
+        await loadUserData(cred.user.uid, cred.user.email || "");
+        const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+        router.push(next);
+        return { error: null };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(friendlyAuthError(err)) };
+    }
+  };
+
+  // Firebase Email/Password Sign-Up
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, email.trim().toLowerCase(), password);
+      if (cred.user) {
+        await loadUserData(cred.user.uid, cred.user.email || "");
+        const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+        router.push(next);
+        return { error: null };
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: new Error(friendlyAuthError(err)) };
+    }
+  };
+
+  // Email OTP Sign-In Request (Supabase Passwordless)
   const signInWithOtp = async (email: string) => {
     try {
       const origin = window.location.origin;
@@ -274,7 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // B. Email OTP Verification
+  // Email OTP Verification (Supabase Passwordless)
   const verifyOtp = async (email: string, token: string) => {
     try {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -302,14 +391,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     explicitLogout.current = true;
     try {
+      await firebaseSignOut(firebaseAuth);
+    } catch {}
+    try {
       await supabase.auth.signOut();
-    } finally {
-      setUser(null);
-      setWorkspaces([]);
-      setCurrentWorkspace(null);
-      setCurrentBrand(null);
-      router.push("/login");
-    }
+    } catch {}
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {}
+    setUser(null);
+    setWorkspaces([]);
+    setCurrentWorkspace(null);
+    setCurrentBrand(null);
+    router.push("/login");
   };
 
   return (
@@ -324,6 +418,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setCurrentBrand,
         refreshAuth,
         signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
         signInWithOtp,
         verifyOtp,
         logout,

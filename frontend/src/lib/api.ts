@@ -38,17 +38,33 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Attach Supabase JWT Bearer token for DRF SupabaseJWTAuthentication
+  // Attach JWT Bearer token (Firebase ID token or Supabase access token)
   if (!headers["Authorization"]) {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
+      if (typeof window !== "undefined") {
+        const { firebaseAuth } = await import("./firebaseClient");
+        if (firebaseAuth.currentUser) {
+          const idToken = await firebaseAuth.currentUser.getIdToken();
+          if (idToken) {
+            headers["Authorization"] = `Bearer ${idToken}`;
+          }
+        }
       }
     } catch {
-      // Fall back to Django session cookie if Supabase session lookup fails
+      // Fall through to other auth sources
+    }
+
+    if (!headers["Authorization"]) {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+      } catch {
+        // Fall back to Django session cookie if token lookup fails
+      }
     }
   }
 
