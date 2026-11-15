@@ -1,0 +1,9 @@
+{
+  "title": "FE-NAV-08 sign out ends the session: Supabase signOut + redirect to /login + Django session invalidated",
+  "status": "failed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

@@ -1,0 +1,17 @@
+{
+  "title": "FE-RTE-07 backend down: dashboard pages show a connection error (not an infinite spinner/blank)",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "[error] Failed to load resource: net::ERR_CONNECTION_REFUSED",
+    "[error] Failed to load resource: net::ERR_CONNECTION_REFUSED"
+  ],
+  "pageErrors": [],
+  "failedRequests": [
+    "GET http://localhost:3100/api/w/e2e-retail/members/ :: net::ERR_CONNECTION_REFUSED",
+    "GET http://localhost:3100/api/w/e2e-retail/members/ :: net::ERR_CONNECTION_REFUSED",
+    "GET http://localhost:3100/api/w/e2e-retail/members/ :: net::ERR_CONNECTION_REFUSED"
+  ],
+  "badResponses": [],
+  "dialogs": []
+}

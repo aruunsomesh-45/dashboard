@@ -1,0 +1,9 @@
+{
+  "title": "FE-AUTH-17 signed-in user visiting /login is redirected to dashboard",
+  "status": "failed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

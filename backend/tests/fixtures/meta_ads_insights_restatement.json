@@ -1,0 +1,97 @@
+{
+  "ad_account_id": "act_9918273645",
+  "initial_pull": [
+    {
+      "date_start": "2026-11-01",
+      "date_stop": "2026-11-01",
+      "spend": "5000.00",
+      "impressions": "45000",
+      "clicks": "1200",
+      "actions": [
+        {
+          "action_type": "purchase",
+          "value": "2"
+        }
+      ],
+      "action_values": [
+        {
+          "action_type": "purchase",
+          "value": "2998.00"
+        }
+      ]
+    },
+    {
+      "date_start": "2026-11-02",
+      "date_stop": "2026-11-02",
+      "spend": "4500.00",
+      "impressions": "40000",
+      "clicks": "1100",
+      "actions": [
+        {
+          "action_type": "purchase",
+          "value": "1"
+        }
+      ],
+      "action_values": [
+        {
+          "action_type": "purchase",
+          "value": "1499.00"
+        }
+      ]
+    }
+  ],
+  "restatement_pull_day7": [
+    {
+      "date_start": "2026-11-01",
+      "date_stop": "2026-11-01",
+      "spend": "5000.00",
+      "impressions": "45000",
+      "clicks": "1200",
+      "actions": [
+        {
+          "action_type": "purchase",
+          "value": "5"
+        }
+      ],
+      "action_values": [
+        {
+          "action_type": "purchase",
+          "value": "7495.00"
+        }
+      ]
+    },
+    {
+      "date_start": "2026-11-02",
+      "date_stop": "2026-11-02",
+      "spend": "4500.00",
+      "impressions": "40000",
+      "clicks": "1100",
+      "actions": [
+        {
+          "action_type": "purchase",
+          "value": "3"
+        }
+      ],
+      "action_values": [
+        {
+          "action_type": "purchase",
+          "value": "4497.00"
+        }
+      ]
+    }
+  ],
+  "campaigns_with_reach": [
+    {
+      "campaign_id": "cmp_101",
+      "campaign_name": "125 East - Top of Funnel Prospecting",
+      "reach": 25000,
+      "spend": "3000.00"
+    },
+    {
+      "campaign_id": "cmp_102",
+      "campaign_name": "125 East - Retargeting Cart Abandoners",
+      "reach": 15000,
+      "spend": "2000.00"
+    }
+  ]
+}

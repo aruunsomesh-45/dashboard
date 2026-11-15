@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "retrieve authenticated user and workspaces",
+    "description": "Call GET /api/auth/me with a valid session and verify the response contains the current user and only their authorized workspaces. Also verify that a missing or invalid session returns an unauthenticated response or empty user context."
+  },
+  {
+    "id": "TC002",
+    "title": "list active workspaces",
+    "description": "Call GET /api/w and verify it returns the active workspaces with their associated brands, without including inactive workspaces."
+  },
+  {
+    "id": "TC003",
+    "title": "create isolated workspace",
+    "description": "Call POST /api/w with a valid workspace name and verify a 201 response, creation of an isolated workspace with a default brand, and availability of the workspace in the listing. Verify missing or invalid names return 400 and do not create a workspace."
+  },
+  {
+    "id": "TC004",
+    "title": "retrieve shopify intelligence",
+    "description": "Call GET /api/w/{slug}/b/{brand_id}/shopify/intelligence/ for a valid brand and verify the response includes gross sales, net sales, average order value, and order item data with financial amounts aggregated correctly in integer paise."
+  },
+  {
+    "id": "TC005",
+    "title": "trigger shopify sync",
+    "description": "Call POST /api/w/{slug}/b/{brand_id}/shopify/sync-now/ with valid Shopify configuration and verify the response confirms the sync was started or completed and updated intelligence is available afterward. Verify missing credentials or unmet preconditions return an error and do not trigger a sync."
+  },
+  {
+    "id": "TC006",
+    "title": "retrieve marketing statistics",
+    "description": "Call GET /api/w/{slug}/b/{brand_id}/marketing/stats/ and verify the response includes 30 day and lifetime Meta Ads facts, including spend, ROAS, and attribution metrics."
+  },
+  {
+    "id": "TC007",
+    "title": "trigger marketing sync",
+    "description": "Call POST /api/w/{slug}/b/{brand_id}/marketing/sync-now/ with valid ad configuration and verify the ingestion request is accepted and updated statistics become available. Verify invalid or missing configuration returns an error without proceeding."
+  },
+  {
+    "id": "TC008",
+    "title": "retrieve logistics summary",
+    "description": "Call GET /api/w/{slug}/b/{brand_id}/logistics/summary/ and verify the response contains aggregate shipment metrics and a correctly calculated NDR rate for the brand."
+  },
+  {
+    "id": "TC009",
+    "title": "submit ndr recovery action",
+    "description": "Call POST /api/w/{slug}/b/{brand_id}/logistics/ndr/{awb}/action/ with a valid reattempt or return to origin action and verify the courier instruction is confirmed. Verify an invalid action returns 400 and does not schedule an instruction."
+  },
+  {
+    "id": "TC010",
+    "title": "retrieve payment statistics",
+    "description": "Call GET /api/w/{slug}/b/{brand_id}/payments/stats/ and verify transaction statistics and success rates are returned. For a brand with no payment data, verify the endpoint returns 200 with empty or zeroed statistics."
+  }
+]

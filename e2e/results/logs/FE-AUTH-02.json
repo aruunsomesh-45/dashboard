@@ -1,0 +1,15 @@
+{
+  "title": "FE-AUTH-02 login: send-code button enables only with email; invalid email blocked by browser validation",
+  "status": "passed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "401 GET http://localhost:3100/api/auth/me",
+    "401 GET http://localhost:3100/api/auth/me"
+  ],
+  "dialogs": []
+}

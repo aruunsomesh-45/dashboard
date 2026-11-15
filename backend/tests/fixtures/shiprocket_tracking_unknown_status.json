@@ -1,0 +1,16 @@
+{
+  "shipment_id": 987654321,
+  "order_id": 8209829119488,
+  "awb_code": "SR125EAST8899",
+  "courier_name": "Bluedart Express",
+  "current_status_id": "999",
+  "current_status": "CARRIER_CUSTOM_TRANSIT_SCAN",
+  "current_timestamp": "2026-11-15T11:45:00+05:30",
+  "scans": [
+    {
+      "date": "2026-11-15 11:45:00",
+      "activity": "Carrier bespoke hub scan",
+      "location": "BOM/HUB"
+    }
+  ]
+}

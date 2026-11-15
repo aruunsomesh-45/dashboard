@@ -1,0 +1,17 @@
+{
+  "title": "FE-PNL-04 API failure is surfaced",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] PnL load error: Error: Internal Server Error\n    at apiFetch (webpack-internal:///(app-pages-browser)/./src/lib/api.ts:95:15)\n    at async loadPnL (webpack-internal:///(app-pages-browser)/./src/app/pnl/page.tsx:61:37)",
+    "[error] PnL load error: Error: Internal Server Error\n    at apiFetch (webpack-internal:///(app-pages-browser)/./src/lib/api.ts:95:15)\n    at async loadPnL (webpack-internal:///(app-pages-browser)/./src/app/pnl/page.tsx:61:37)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "500 GET http://localhost:3100/api/w/e2e-retail/b/e1ec6ba7-19d8-4210-a417-9aa83f67e999/shopify/stats/?days=30",
+    "500 GET http://localhost:3100/api/w/e2e-retail/b/e1ec6ba7-19d8-4210-a417-9aa83f67e999/shopify/stats/?days=30"
+  ],
+  "dialogs": []
+}

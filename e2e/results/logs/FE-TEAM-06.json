@@ -1,0 +1,15 @@
+{
+  "title": "FE-TEAM-06 members API failure shows an error rather than an empty list",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "500 GET http://localhost:3100/api/w/e2e-retail/members/",
+    "500 GET http://localhost:3100/api/w/e2e-retail/members/"
+  ],
+  "dialogs": []
+}

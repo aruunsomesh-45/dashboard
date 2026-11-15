@@ -1,0 +1,13 @@
+{
+  "title": "FE-RTE-04 routes referenced by the app but missing: /invites/accept and /mfa-challenge",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "404 GET http://localhost:3100/invites/accept?token=abc"
+  ],
+  "dialogs": []
+}

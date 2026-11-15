@@ -1,0 +1,9 @@
+{
+  "title": "FE-NAV-09 MFA link in footer goes to /mfa-setup",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

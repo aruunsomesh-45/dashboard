@@ -1,0 +1,40 @@
+{
+  "entity": "event",
+  "account_id": "acc_125east_live",
+  "event": "payment.captured",
+  "contains": [
+    "payment"
+  ],
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_test_unlinked_99",
+        "entity": "payment",
+        "amount": 149900,
+        "currency": "INR",
+        "status": "captured",
+        "order_id": "order_rzp_random_88",
+        "invoice_id": null,
+        "international": false,
+        "method": "upi",
+        "amount_refunded": 0,
+        "refund_status": null,
+        "captured": true,
+        "description": "Storefront offline counter purchase",
+        "card_id": null,
+        "bank": null,
+        "wallet": null,
+        "vpa": "customer@paytm",
+        "email": "walkin@example.com",
+        "contact": "+919999888877",
+        "notes": {},
+        "fee": 0,
+        "tax": 0,
+        "error_code": null,
+        "error_description": null,
+        "created_at": 1731661200
+      }
+    }
+  },
+  "created_at": 1731661205
+}

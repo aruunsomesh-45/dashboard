@@ -1,0 +1,9 @@
+{
+  "title": "FE-INT-07 card status reflects backend integration status (not hardcoded defaults)",
+  "status": "failed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

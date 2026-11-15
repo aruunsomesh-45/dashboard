@@ -1,0 +1,42 @@
+{
+  "id": 8209829119489,
+  "admin_graphql_api_id": "gid://shopify/Order/8209829119489",
+  "order_number": 1002,
+  "name": "#1002",
+  "created_at": "2026-11-15T09:05:00+05:30",
+  "updated_at": "2026-11-15T09:05:00+05:30",
+  "taxes_included": false,
+  "currency": "INR",
+  "financial_status": "pending",
+  "fulfillment_status": "unfulfilled",
+  "total_line_items_price": "1499.00",
+  "total_discounts": "0.00",
+  "total_tax": "269.82",
+  "total_price": "1768.82",
+  "subtotal_price": "1499.00",
+  "total_shipping_price_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    }
+  },
+  "customer": {
+    "id": 7182938492,
+    "first_name": "Rohan",
+    "last_name": "Verma",
+    "email": "rohan.verma@example.com",
+    "phone": "+919876543211",
+    "orders_count": 1,
+    "total_spent": "1768.82"
+  },
+  "line_items": [
+    {
+      "id": 1492049282,
+      "title": "125 EAST Raw Denim",
+      "sku": "125E-DNM-32",
+      "quantity": 1,
+      "price": "1499.00",
+      "total_discount": "0.00"
+    }
+  ]
+}

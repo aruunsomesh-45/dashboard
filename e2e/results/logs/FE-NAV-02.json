@@ -1,0 +1,9 @@
+{
+  "title": "FE-NAV-02 every sidebar link navigates client-side to its route and highlights as active",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

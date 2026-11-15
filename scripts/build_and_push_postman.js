@@ -1,0 +1,892 @@
+const fs = require('fs');
+const https = require('https');
+const path = require('path');
+
+const POSTMAN_KEY = process.env.POSTMAN_API_KEY || ''; // never hard-code; export it in your shell
+const WORKSPACE_ID = '018f2e5f-bfc1-4879-8c40-633664e48972';
+
+const collectionData = {
+  collection: {
+    info: {
+      name: '125 EAST - Unified API Test Suite',
+      description: 'Comprehensive, end-to-end automated API test suite for the 125 EAST Commerce Intelligence platform. Covers Authentication, Multi-tenant Workspaces, App Integrations, Shopify Intelligence, Meta Marketing, Executive MER Metrics, and Operational Alerts.',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    item: [
+      {
+        name: '1. Authentication & Security',
+        description: 'Session authentication, CSRF cookie rotation, and current user profile.',
+        item: [
+          {
+            name: '1.1 GET Refresh CSRF Token',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/auth/csrf/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'auth', 'csrf', '']
+              },
+              description: 'Sets the csrftoken cookie so the browser includes X-CSRFToken on POST/PUT requests.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Returns csrfToken property", () => {',
+                    '    pm.expect(pm.response.json()).to.have.property("csrfToken");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '1.2 GET Current User Profile & Memberships',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/auth/me/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'auth', 'me', '']
+              },
+              description: 'Validates session and fetches current user profile and assigned workspaces.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains user object and workspaces array", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data).to.have.property("user");',
+                    '    pm.expect(data.workspaces).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '2. Multi-Tenant Workspaces & Brands',
+        description: 'Workspace provisioning, tenant switching, brand hierarchy, and team roles.',
+        item: [
+          {
+            name: '2.1 GET List User Workspaces',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w']
+              },
+              description: 'Lists all multi-tenant workspaces owned or accessible by the user.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Response is an array of workspaces", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '2.2 POST Create New Workspace',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify({ name: 'Postman Automated Store' })
+              },
+              url: {
+                raw: '{{baseUrl}}/api/w',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w']
+              },
+              description: 'Provisions a new tenant workspace with owner role and default brand.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 201 Created", () => pm.response.to.have.status(201));',
+                    'pm.test("Workspace created with ID and slug", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data).to.have.property("id");',
+                    '    pm.expect(data).to.have.property("slug");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '2.3 GET Workspace Details by Slug',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', '']
+              },
+              description: 'Retrieves active workspace configuration, plan limits, and members count.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains workspace details and user role", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data).to.have.property("workspace");',
+                    '    pm.expect(data).to.have.property("role");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '2.4 GET List Workspace Brands',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/brands/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'brands', '']
+              },
+              description: 'Lists all store brands under this workspace for the brand switcher.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Response is an array of brands", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '2.5 GET List Workspace Team Members',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/members/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'members', '']
+              },
+              description: 'Lists team members and their roles (owner, admin, analyst).'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Response is an array of team members", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '3. App Connectors & Credential Vault',
+        description: 'Managing third-party connections and AES-256-GCM zero-plaintext encrypted credential storage.',
+        item: [
+          {
+            name: '3.1 GET List Installed App Connectors',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/integrations/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'integrations', '']
+              },
+              description: 'Lists all connected third-party integrations and statuses for this brand.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Returns integrations array", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '3.2 POST Save & Encrypt App Credentials (AES-256-GCM)',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify({
+                  provider: 'meta_ads',
+                  account_identifier: '1030684559469520',
+                  credentials: {
+                    ad_account_id: '1030684559469520',
+                    access_token: 'EAAPZBTJvuSBYBS...'
+                  }
+                })
+              },
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/integrations/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'integrations', '']
+              },
+              description: 'Encrypts tokens and secrets using AES-256-GCM before database write.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Integration status is connected", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.status).to.equal("connected");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '4. Shopify Intelligence',
+        description: 'Shopify order analytics, net revenue, fulfillment, and sync.',
+        item: [
+          {
+            name: '4.1 GET Shopify Dashboard Stats (30D)',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/shopify/stats/?days=30&limit=5',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'shopify', 'stats', ''],
+                query: [
+                  { key: 'days', value: '30' },
+                  { key: 'limit', value: '5' }
+                ]
+              },
+              description: 'Returns orders count, net sales, conversion funnel, and recent orders.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains connected status flag", () => {',
+                    '    pm.expect(pm.response.json()).to.have.property("connected");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '5. Marketing & Meta Ads Intelligence',
+        description: 'Meta Ads KPI performance, campaign ROAS breakdown, and Graph API v21.0 integration.',
+        item: [
+          {
+            name: '5.1 GET Meta Marketing Stats - Success (200)',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/marketing/stats/?days=30',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'marketing', 'stats', ''],
+                query: [{ key: 'days', value: '30' }]
+              },
+              description: 'Positive test case: Valid brand returns 200 OK with live connected metrics.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains connected flag", () => {',
+                    '    pm.expect(pm.response.json()).to.have.property("connected");',
+                    '});',
+                    'pm.test("Contains campaigns and daily trends arrays", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.campaigns).to.be.an("array");',
+                    '    pm.expect(data.daily_trends).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '5.2 GET Meta Marketing Stats - Not Found (404)',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/00000000-0000-0000-0000-000000000000/marketing/stats/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '00000000-0000-0000-0000-000000000000', 'marketing', 'stats', '']
+              },
+              description: 'Negative boundary test case: Non-existent brand ID returns 404 Not Found error.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 404", () => pm.response.to.have.status(404));',
+                    'pm.test("Returns detail or error property", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.detail || data.error).to.be.a("string");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '5.3 POST Trigger Meta On-Demand Sync',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: { mode: 'raw', raw: '{}' },
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/marketing/sync-now/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'marketing', 'sync-now', '']
+              },
+              description: 'Triggers on-demand background ingestion from Meta Graph API (or dev simulation).'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Sync returns success status", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.status).to.equal("success");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '5.4 GET Meta Graph API - Verify Ad Account',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{graphBaseUrl}}/v21.0/act_{{ad_account_id}}/?fields=id,name,currency,timezone_name,amount_spent&access_token={{meta_access_token}}',
+                host: ['{{graphBaseUrl}}'],
+                path: ['v21.0', 'act_{{ad_account_id}}', ''],
+                query: [
+                  { key: 'fields', value: 'id,name,currency,timezone_name,amount_spent' },
+                  { key: 'access_token', value: '{{meta_access_token}}' }
+                ]
+              },
+              description: 'Verifies account status, currency, and lifetime spend.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Account ID matches", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.id).to.include(pm.variables.get("ad_account_id"));',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '5.5 GET Meta Graph API - 30D Insights Breakdown',
+            request: {
+              method: 'GET',
+              header: [],
+              url: {
+                raw: '{{graphBaseUrl}}/v21.0/act_{{ad_account_id}}/insights/?access_token={{meta_access_token}}&fields=spend,impressions,clicks,cpc,ctr,actions,action_values&date_preset=last_30d',
+                host: ['{{graphBaseUrl}}'],
+                path: ['v21.0', 'act_{{ad_account_id}}', 'insights', ''],
+                query: [
+                  { key: 'access_token', value: '{{meta_access_token}}' },
+                  { key: 'fields', value: 'spend,impressions,clicks,cpc,ctr,actions,action_values' },
+                  { key: 'date_preset', value: 'last_30d' }
+                ]
+              },
+              description: 'Direct call to fetch aggregate 30-day spend, outbound clicks, and conversion actions.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Insights returns data array", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.data).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '6. Cross-Channel Overview & Operational Alerts',
+        description: 'Marketing Efficiency Ratio (MER), blended revenue, and operational anomalies.',
+        item: [
+          {
+            name: '6.1 GET Query Executive Unified Metrics (MER)',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/metrics/?metrics=net_sales,ad_spend,blended_roas&days=30',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'metrics', ''],
+                query: [
+                  { key: 'metrics', value: 'net_sales,ad_spend,blended_roas' },
+                  { key: 'days', value: '30' }
+                ]
+              },
+              description: 'Blends Shopify net sales against Meta ad spend to compute true Marketing Efficiency Ratio (MER).'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains metrics payload", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data).to.have.property("metrics");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '6.2 GET List Workspace Operational Alerts',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/alerts/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'alerts', '']
+              },
+              description: 'Lists active operational alerts: low hero SKU stock, CAC spikes, and delivery bottlenecks.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Response is an array of alerts", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '7. Razorpay Payment Intelligence',
+        description: 'Payment conversion rates, payment method splits (UPI, cards), fee deductions, and webhooks.',
+        item: [
+          {
+            name: '7.1 GET Razorpay Payment Stats (30D)',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/payments/stats/?days=30',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'payments', 'stats', ''],
+                query: [{ key: 'days', value: '30' }]
+              },
+              description: 'Returns authorized payment rate, total captured minor, fees, and method splits.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains authorized_rate and method_splits", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data).to.have.property("authorized_rate");',
+                    '    pm.expect(data).to.have.property("method_splits");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '7.2 GET List Reconciled Razorpay Transactions',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/payments/transactions/?limit=50',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'payments', 'transactions', ''],
+                query: [{ key: 'limit', value: '50' }]
+              },
+              description: 'Lists captured payments with gateway fee and GST tax deductions in integer paise.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Returns transactions array", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '7.3 POST Trigger Inbound Razorpay Webhook',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify({
+                  event: 'payment.captured',
+                  payload: { payment: { entity: { id: 'pay_test_123', amount: 249900 } } }
+                })
+              },
+              url: {
+                raw: '{{baseUrl}}/api/webhooks/razorpay/{{brand_id}}/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'webhooks', 'razorpay', '{{brand_id}}', '']
+              },
+              description: 'Receives real-time payment capture confirmations from Razorpay.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Webhook accepted", () => {',
+                    '    pm.expect(pm.response.json().status).to.equal("accepted");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        name: '8. Delhivery Carrier Logistics & Tracking',
+        description: 'AWB package tracking, carrier transit SLA, NDR re-attempt triggers, and delivery webhooks.',
+        item: [
+          {
+            name: '8.1 GET Delhivery Logistics KPI Summary',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/logistics/summary/?days=30',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'logistics', 'summary', ''],
+                query: [{ key: 'days', value: '30' }]
+              },
+              description: 'Returns in-transit count, delivered count, NDR rate, and RTO return rate.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains carrier and ndr_count", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.carrier).to.equal("delhivery");',
+                    '    pm.expect(data).to.have.property("ndr_count");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '8.2 GET List Active Delhivery Courier Shipments',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/logistics/shipments/?limit=50',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'logistics', 'shipments', ''],
+                query: [{ key: 'limit', value: '50' }]
+              },
+              description: 'Lists order fulfillment shipments, AWBs, delivery SLAs, and destination cities.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Returns shipments array", () => {',
+                    '    pm.expect(pm.response.json()).to.be.an("array");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '8.3 GET Track Live Delhivery AWB Package Scans',
+            request: {
+              method: 'GET',
+              header: [{ key: 'Accept', value: 'application/json' }],
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/logistics/track/DEL10398472910/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'logistics', 'track', 'DEL10398472910', '']
+              },
+              description: 'Shows live milestone timeline scans from origin warehouse to destination doorstep.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Contains tracking scans array", () => {',
+                    '    var data = pm.response.json();',
+                    '    pm.expect(data.scans).to.be.an("array");',
+                    '    pm.expect(data.current_status).to.equal("OUT_FOR_DELIVERY");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '8.4 POST Trigger Delhivery NDR Re-attempt Action',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify({ action: 'reattempt' })
+              },
+              url: {
+                raw: '{{baseUrl}}/api/w/{{workspace_slug}}/b/{{brand_id}}/logistics/ndr/DEL10398472910/action/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'w', '{{workspace_slug}}', 'b', '{{brand_id}}', 'logistics', 'ndr', 'DEL10398472910', 'action', '']
+              },
+              description: 'Instructs Delhivery delivery hub to re-attempt customer delivery for non-delivered orders.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("NDR reattempt scheduled", () => {',
+                    '    pm.expect(pm.response.json().success).to.be.true;',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          },
+          {
+            name: '8.5 POST Trigger Inbound Delhivery Scan Webhook',
+            request: {
+              method: 'POST',
+              header: [
+                { key: 'Content-Type', value: 'application/json' },
+                { key: 'Accept', value: 'application/json' }
+              ],
+              body: {
+                mode: 'raw',
+                raw: JSON.stringify({
+                  awb: 'DEL10398472910',
+                  status: 'OUT_FOR_DELIVERY',
+                  location: 'Mumbai Hub'
+                })
+              },
+              url: {
+                raw: '{{baseUrl}}/api/webhooks/delhivery/{{brand_id}}/',
+                host: ['{{baseUrl}}'],
+                path: ['api', 'webhooks', 'delhivery', '{{brand_id}}', '']
+              },
+              description: 'Receives milestone scan updates pushed by Delhivery dispatch centers.'
+            },
+            event: [
+              {
+                listen: 'test',
+                script: {
+                  exec: [
+                    'pm.test("Status code is 200", () => pm.response.to.have.status(200));',
+                    'pm.test("Delhivery scan update accepted", () => {',
+                    '    pm.expect(pm.response.json().status).to.equal("accepted");',
+                    '});'
+                  ],
+                  type: 'text/javascript'
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    variable: [
+      { key: 'baseUrl', value: 'http://127.0.0.1:8001' },
+      { key: 'graphBaseUrl', value: 'http://127.0.0.1:8001/api/integrations/meta/graph' },
+      { key: 'workspace_slug', value: 'aruunsomesh-store' },
+      { key: 'brand_id', value: 'e309a60f-d474-4d04-ae30-387b571c46f2' },
+      { key: 'workspace_id', value: '246b35a1-35d6-40a9-9e3b-5269fa893d9b' },
+      { key: 'ad_account_id', value: '1030684559469520' },
+      { key: 'meta_access_token', value: 'EAAPZBTJvuSBYBS...' }
+    ]
+  }
+};
+
+// 1. Save local JSON file in api-tests/
+const testsDir = path.join(__dirname, '..', 'api-tests');
+if (!fs.existsSync(testsDir)) {
+  fs.mkdirSync(testsDir, { recursive: true });
+}
+const localFilePath = path.join(testsDir, '125east-api-test-suite.postman_collection.json');
+fs.writeFileSync(localFilePath, JSON.stringify(collectionData.collection, null, 2));
+console.log(`[OK] Saved local collection to: ${localFilePath}`);
+
+const TARGET_COLLECTION_UID = '58819832-4979d7ef-c291-42df-bd05-e3c99ee90064';
+
+// 2. Push update directly to Postman collection UID
+const postPayload = JSON.stringify(collectionData);
+const req = https.request({
+  hostname: 'api.getpostman.com',
+  path: `/collections/${TARGET_COLLECTION_UID}`,
+  method: 'PUT',
+  headers: {
+    'X-Api-Key': POSTMAN_KEY,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(postPayload)
+  }
+}, (res) => {
+  let body = '';
+  res.on('data', c => body += c);
+  res.on('end', () => {
+    console.log(`[POSTMAN] Response Status Code: ${res.statusCode}`);
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed.collection) {
+        console.log(`[SUCCESS] Updated Postman collection: "${parsed.collection.name}" (UID: ${parsed.collection.uid})`);
+      } else {
+        console.log('[RESPONSE]:', parsed);
+      }
+    } catch (e) {
+      console.log('Raw response:', body);
+    }
+  });
+});
+
+req.on('error', e => console.error('[ERROR]:', e));
+req.write(postPayload);
+req.end();

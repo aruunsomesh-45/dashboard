@@ -1,0 +1,9 @@
+{
+  "title": "FE-AUTH-18 no unmocked Supabase endpoints are hit during sign-in flow",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

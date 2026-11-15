@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: 125 East Commerce Intelligence API
+  version: 1.0.0
+  description: Multi-tenant Commerce Analytics & Operations Engine
+paths:
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/mfa/challenge/:
+    post:
+      operationId: auth_mfa_challenge_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/mfa/confirm/:
+    post:
+      operationId: auth_mfa_confirm_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/mfa/setup/:
+    post:
+      operationId: auth_mfa_setup_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/register/:
+    post:
+      operationId: auth_register_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/w/:
+    get:
+      operationId: w_retrieve
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: w_create
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/w/{workspace_slug}/:
+    get:
+      operationId: w_retrieve_2
+      parameters:
+      - in: path
+        name: workspace_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/w/{workspace_slug}/brands/:
+    get:
+      operationId: w_brands_retrieve
+      parameters:
+      - in: path
+        name: workspace_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: w_brands_create
+      parameters:
+      - in: path
+        name: workspace_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/w/{workspace_slug}/invites/:
+    post:
+      operationId: w_invites_create
+      parameters:
+      - in: path
+        name: workspace_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/w/{workspace_slug}/members/:
+    get:
+      operationId: w_members_retrieve
+      parameters:
+      - in: path
+        name: workspace_slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/w/invites/accept/:
+    post:
+      operationId: w_invites_accept_create
+      tags:
+      - w
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

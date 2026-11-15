@@ -1,0 +1,43 @@
+{
+  "entity": "event",
+  "account_id": "acc_125east_live",
+  "event": "payment.captured",
+  "contains": [
+    "payment"
+  ],
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_test_cap_card_02",
+        "entity": "payment",
+        "amount": 149900,
+        "currency": "INR",
+        "status": "captured",
+        "order_id": "order_rzp_9901",
+        "invoice_id": null,
+        "international": false,
+        "method": "card",
+        "amount_refunded": 0,
+        "refund_status": null,
+        "captured": true,
+        "description": "Order #1001 payment attempt 2",
+        "card_id": "card_9829141",
+        "bank": "HDFC",
+        "wallet": null,
+        "vpa": null,
+        "email": "aarav.sharma@example.com",
+        "contact": "+919876543210",
+        "notes": {
+          "shopify_order_id": "8209829119488",
+          "brand": "125east"
+        },
+        "fee": 2998,
+        "tax": 540,
+        "error_code": null,
+        "error_description": null,
+        "created_at": 1731661320
+      }
+    }
+  },
+  "created_at": 1731661325
+}

@@ -1,0 +1,13 @@
+{
+  "title": "FE-INT-05 disconnect asks for confirmation and marks provider Not Connected; state survives reload",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [
+    "GET http://localhost:3100/api/w/e2e-retail/b/e1ec6ba7-19d8-4210-a417-9aa83f67e999/integrations :: net::ERR_ABORTED"
+  ],
+  "badResponses": [],
+  "dialogs": [
+    "confirm: Disconnect this integration? Real-time webhooks and syncs will pause."
+  ]
+}

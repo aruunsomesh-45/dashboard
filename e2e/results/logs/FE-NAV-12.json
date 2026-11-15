@@ -1,0 +1,19 @@
+{
+  "title": "FE-NAV-12 Supabase table read failure does not leave a blank cockpit",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+    "[error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "500 GET https://ybyroxyofqfpozvfedhc.supabase.co/rest/v1/accounts_user?select=id%2Cemail%2Cfirst_name%2Clast_name%2Cmfa_enabled%2Ccreated_at&id=eq.3f1d85a3-57ee-48aa-b7fe-90d801e6bd42",
+    "500 GET https://ybyroxyofqfpozvfedhc.supabase.co/rest/v1/accounts_user?select=id%2Cemail%2Cfirst_name%2Clast_name%2Cmfa_enabled%2Ccreated_at&id=eq.3f1d85a3-57ee-48aa-b7fe-90d801e6bd42",
+    "500 GET https://ybyroxyofqfpozvfedhc.supabase.co/rest/v1/tenancy_workspacemember?select=role%2Cworkspace%3Atenancy_workspace%28id%2Cname%2Cslug%29&user_id=eq.3f1d85a3-57ee-48aa-b7fe-90d801e6bd42",
+    "500 GET https://ybyroxyofqfpozvfedhc.supabase.co/rest/v1/tenancy_workspacemember?select=role%2Cworkspace%3Atenancy_workspace%28id%2Cname%2Cslug%29&user_id=eq.3f1d85a3-57ee-48aa-b7fe-90d801e6bd42"
+  ],
+  "dialogs": []
+}

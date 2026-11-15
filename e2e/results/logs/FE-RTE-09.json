@@ -1,0 +1,9 @@
+{
+  "title": "FE-RTE-09 cross-tenant URL: opening another workspace's brand via API returns 404 (no data leak in UI calls)",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

@@ -1,0 +1,49 @@
+{
+  "password": "E2eTestPassw0rd!",
+  "users": {
+    "owner": {
+      "id": "3f1d85a3-57ee-48aa-b7fe-90d801e6bd42",
+      "email": "e2e-owner@test.local",
+      "first_name": "Olive"
+    },
+    "admin": {
+      "id": "ea2e6e9d-3ba4-4cef-a71f-5a641e7107b9",
+      "email": "e2e-admin@test.local",
+      "first_name": "Adam"
+    },
+    "viewer": {
+      "id": "e31771ce-8245-4d88-a62b-bceb9c8b8dbe",
+      "email": "e2e-viewer@test.local",
+      "first_name": "Vera"
+    },
+    "outsider": {
+      "id": "6bb2073b-44dc-457b-b8ce-40159885f8b5",
+      "email": "e2e-outsider@test.local",
+      "first_name": "Otto"
+    }
+  },
+  "workspace": {
+    "id": "f9d372d0-0079-4367-822b-f3b4362cf629",
+    "name": "E2E Retail",
+    "slug": "e2e-retail"
+  },
+  "other_workspace": {
+    "id": "290e4a0b-0af7-4f99-806e-6fd9a19c1f4e",
+    "slug": "other-co"
+  },
+  "brands": [
+    {
+      "id": "e1ec6ba7-19d8-4210-a417-9aa83f67e999",
+      "name": "E2E Apparel",
+      "currency": "INR",
+      "timezone": "Asia/Kolkata"
+    },
+    {
+      "id": "df419a67-7e3f-4601-8fde-719b6e157f93",
+      "name": "E2E Footwear",
+      "currency": "INR",
+      "timezone": "Asia/Kolkata"
+    }
+  ],
+  "other_brand_id": "dc626c78-e00f-4de7-b543-95048ec76743"
+}

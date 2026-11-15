@@ -1,0 +1,9 @@
+{
+  "title": "FE-RTE-06 API proxy: /api/auth/csrf reachable through frontend and sets csrftoken cookie",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

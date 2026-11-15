@@ -1,0 +1,17 @@
+{
+  "title": "FE-AUTH-04 login: OTP request failure shows error message",
+  "status": "passed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "[error] Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "401 GET http://localhost:3100/api/auth/me",
+    "401 GET http://localhost:3100/api/auth/me",
+    "429 POST https://ybyroxyofqfpozvfedhc.supabase.co/auth/v1/otp?redirect_to=http%3A%2F%2Flocalhost%3A3100%2Fauth%2Fcallback"
+  ],
+  "dialogs": []
+}

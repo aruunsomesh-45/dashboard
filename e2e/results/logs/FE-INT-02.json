@@ -1,0 +1,9 @@
+{
+  "title": "FE-INT-02 configure modal opens with provider fields (password-type secrets) and closes via X / Cancel",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

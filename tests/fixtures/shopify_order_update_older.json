@@ -1,0 +1,42 @@
+{
+  "id": 8209829119488,
+  "admin_graphql_api_id": "gid://shopify/Order/8209829119488",
+  "order_number": 1001,
+  "name": "#1001",
+  "created_at": "2026-11-15T09:00:00+05:30",
+  "updated_at": "2026-11-15T10:00:00+05:30",
+  "taxes_included": true,
+  "currency": "INR",
+  "financial_status": "partially_paid",
+  "fulfillment_status": "unfulfilled",
+  "total_line_items_price": "1499.00",
+  "total_discounts": "0.00",
+  "total_tax": "228.66",
+  "total_price": "1499.00",
+  "subtotal_price": "1270.34",
+  "total_shipping_price_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "INR"
+    }
+  },
+  "customer": {
+    "id": 7182938491,
+    "first_name": "Aarav",
+    "last_name": "Sharma",
+    "email": "aarav.sharma@example.com",
+    "phone": "+919876543210",
+    "orders_count": 1,
+    "total_spent": "1499.00"
+  },
+  "line_items": [
+    {
+      "id": 1492049281,
+      "title": "125 EAST Classic Oversized Tee",
+      "sku": "125E-TEE-BLK-L",
+      "quantity": 1,
+      "price": "1499.00",
+      "total_discount": "0.00"
+    }
+  ]
+}

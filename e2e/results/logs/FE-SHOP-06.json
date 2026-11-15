@@ -1,0 +1,9 @@
+{
+  "title": "FE-SHOP-06 user can reach orders beyond the first page (API has 60 orders; backend supports keyset cursor)",
+  "status": "failed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

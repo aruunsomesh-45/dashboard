@@ -1,0 +1,9 @@
+{
+  "title": "FE-PAY-05 data comes from the backend (payment_attempt API) not constants",
+  "status": "failed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

@@ -1,0 +1,9 @@
+{
+  "title": "FE-NAV-06 create-workspace modal: empty name blocked, cancel closes, submit posts to API",
+  "status": "timedOut",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

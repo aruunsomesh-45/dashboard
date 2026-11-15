@@ -1,0 +1,13 @@
+{
+  "title": "FE-SHOP-07 Sync Store posts to sync-now, shows success notice, then reloads data",
+  "status": "failed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "400 POST http://localhost:3100/api/w/e2e-retail/b/e1ec6ba7-19d8-4210-a417-9aa83f67e999/shopify/sync-now"
+  ],
+  "dialogs": []
+}

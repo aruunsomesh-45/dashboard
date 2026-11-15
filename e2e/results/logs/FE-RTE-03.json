@@ -1,0 +1,13 @@
+{
+  "title": "FE-RTE-03 unknown route renders a 404 page inside the app, not a crash",
+  "status": "passed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "404 GET http://localhost:3100/definitely-not-a-page"
+  ],
+  "dialogs": []
+}

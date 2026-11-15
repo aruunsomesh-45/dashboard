@@ -1,0 +1,9 @@
+{
+  "title": "FE-SHOP-10 empty brand (no orders) shows zero KPIs and empty-table message",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

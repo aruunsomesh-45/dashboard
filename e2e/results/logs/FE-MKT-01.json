@@ -1,0 +1,20 @@
+{
+  "title": "FE-MKT-01 renders and tabs switch between Meta Ads and Organic",
+  "status": "failed",
+  "console": [
+    "[error] Warning: Text content did not match. Server: \"%s\" Client: \"%s\"%s 2,45,000 245,000 \n    at td\n    at tr\n    at tbody\n    at table\n    at div\n    at div\n    at div\n    at div\n    at main\n    at div\n    at DashboardShell (webpack-internal:///(app-pages-browser)/./src/components/layout/DashboardShell.ts",
+    "[error] Warning: An error occurred during hydration. The server HTML was replaced with client content in <%s>. #document"
+  ],
+  "pageErrors": [
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: Text content does not match server-rendered HTML.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error",
+    "Error: There was an error while hydrating. Because the error happened outside of a Suspense boundary, the entire root will switch to client rendering.\nSee more info here: https://nextjs.org/docs/messages/react-hydration-error"
+  ],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}

@@ -1,0 +1,13 @@
+{
+  "title": "FE-SHOP-08 sync failure shows the server error message",
+  "status": "passed",
+  "console": [
+    "[error] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [
+    "404 POST http://localhost:3100/api/w/e2e-retail/b/e1ec6ba7-19d8-4210-a417-9aa83f67e999/shopify/sync-now/"
+  ],
+  "dialogs": []
+}

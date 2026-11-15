@@ -1,0 +1,9 @@
+{
+  "title": "FE-SHOP-02 loading state shown while stats request is in flight",
+  "status": "passed",
+  "console": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "badResponses": [],
+  "dialogs": []
+}
