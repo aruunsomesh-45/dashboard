@@ -25,11 +25,12 @@ def root_view(request):
 
 urlpatterns = [
     path("", root_view, name="api-root"),
+    re_path(r"^api/health/?$", root_view, name="api-health"),
     path("admin/", admin.site.urls),
     # OpenAPI 3 Schema & Swagger UI for AI Frontend integration
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "api/docs/",
+    re_path(r"^api/schema/?$", SpectacularAPIView.as_view(), name="schema"),
+    re_path(
+        r"^api/docs/?$",
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),

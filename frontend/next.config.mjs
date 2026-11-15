@@ -5,6 +5,7 @@ const isExport = process.env.NEXT_EXPORT === "true";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  skipTrailingSlashRedirect: true,
   output: isExport ? "export" : (process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined),
   ...(isExport ? {} : {
     async rewrites() {
