@@ -289,9 +289,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: null }; // User closed popup intentionally
         }
         if (fbErr?.code === "auth/unauthorized-domain") {
+          const currentHost = typeof window !== "undefined" ? window.location.hostname : "this domain";
           return {
             error: new Error(
-              "localhost is not in Firebase authorized domains. Please add localhost to Firebase Console -> Authentication -> Settings -> Authorized domains."
+              `'${currentHost}' is not in Firebase authorized domains. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains.`
             ),
           };
         }
