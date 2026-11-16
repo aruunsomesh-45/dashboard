@@ -15,3 +15,10 @@ CORS_ALLOWED_ORIGINS = env.list(  # noqa: F405
 )
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+
+# Generous throttle rates in local development so local testing is never delayed
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # noqa: F405
+    "auth": "1000/min",
+    "sync": "1000/min",
+    "ndr": "1000/min",
+}

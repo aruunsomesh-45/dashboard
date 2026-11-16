@@ -1,4 +1,12 @@
 import { supabase } from "./supabaseClient";
+import { firebaseAuth } from "./firebaseClient";
+
+// In-memory token cache for ultra-fast API calls
+let cachedBearerToken: string | null = null;
+
+export function setAuthBearerToken(token: string | null) {
+  cachedBearerToken = token;
+}
 
 // ─── CSRF helpers ──────────────────────────────────────────────────────────
 // Django sets a readable `csrftoken` cookie (CSRF_COOKIE_HTTPONLY = False).
@@ -38,32 +46,21 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Attach JWT Bearer token (Firebase ID token or Supabase access token)
+  // Attach JWT Bearer token (Cached memory token first, then Firebase)
   if (!headers["Authorization"]) {
-    try {
-      if (typeof window !== "undefined") {
-        const { firebaseAuth } = await import("./firebaseClient");
+    if (cachedBearerToken) {
+      headers["Authorization"] = `Bearer ${cachedBearerToken}`;
+    } else if (typeof window !== "undefined" && !endpoint.includes("/api/auth/csrf")) {
+      try {
         if (firebaseAuth.currentUser) {
           const idToken = await firebaseAuth.currentUser.getIdToken();
           if (idToken) {
+            cachedBearerToken = idToken;
             headers["Authorization"] = `Bearer ${idToken}`;
           }
         }
-      }
-    } catch {
-      // Fall through to other auth sources
-    }
-
-    if (!headers["Authorization"]) {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          headers["Authorization"] = `Bearer ${session.access_token}`;
-        }
       } catch {
-        // Fall back to Django session cookie if token lookup fails
+        // Fall back to Django session cookie
       }
     }
   }

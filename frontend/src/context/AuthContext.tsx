@@ -13,7 +13,7 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { useRouter, usePathname } from "next/navigation";
-import { ensureCsrf, apiFetch } from "@/lib/api";
+import { ensureCsrf, apiFetch, setAuthBearerToken } from "@/lib/api";
 import { loginUrlFor, safeNextPath } from "@/lib/authRedirect";
 import { friendlyAuthError } from "@/lib/authErrors";
 
@@ -46,6 +46,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const explicitLogout = useRef(false);
+  const isRefreshingRef = useRef(false);
+  const currentWorkspaceRef = useRef<Workspace | null>(null);
+  const currentBrandRef = useRef<Brand | null>(null);
+
+  useEffect(() => {
+    currentWorkspaceRef.current = currentWorkspace;
+  }, [currentWorkspace]);
+
+  useEffect(() => {
+    currentBrandRef.current = currentBrand;
+  }, [currentBrand]);
 
   const isPublicRoute =
     pathname === "/login" ||
@@ -57,26 +68,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Load workspace and user profile given a user ID & email
   const loadUserData = useCallback(async (userId: string, email: string) => {
     try {
-      // 1. Fetch user profile from Supabase or Django /api/auth/me
-      let resolvedUser: User | null = null;
+      // 1. Fetch user profile from Django /api/auth/me (fast single DB query)
       try {
         const meData = await apiFetch<any>("/api/auth/me");
         if (meData?.user) {
-          resolvedUser = meData.user;
+          setUser(meData.user);
           if (Array.isArray(meData.workspaces) && meData.workspaces.length > 0) {
             setWorkspaces(meData.workspaces);
-            const activeWs = currentWorkspace
-              ? meData.workspaces.find((w: any) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || meData.workspaces[0]
+            const activeWs = currentWorkspaceRef.current
+              ? meData.workspaces.find((w: any) => w.id === currentWorkspaceRef.current?.id || w.slug === currentWorkspaceRef.current?.slug) || meData.workspaces[0]
               : meData.workspaces[0];
             setCurrentWorkspace(activeWs);
 
             if (activeWs.brands && activeWs.brands.length > 0) {
-              const activeBrand = currentBrand
-                ? activeWs.brands.find((b: any) => b.id === currentBrand.id) || activeWs.brands[0]
+              const activeBrand = currentBrandRef.current
+                ? activeWs.brands.find((b: any) => b.id === currentBrandRef.current?.id) || activeWs.brands[0]
                 : activeWs.brands[0];
               setCurrentBrand(activeBrand);
             }
-            setUser(resolvedUser);
             return;
           }
         }
@@ -90,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("email", email)
         .single();
 
-      resolvedUser = {
+      const resolvedUser: User = {
         id: profile?.id || userId,
         email: profile?.email || email,
         first_name: profile?.first_name || "",
@@ -136,80 +145,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setWorkspaces(loadedWorkspaces);
 
         if (loadedWorkspaces.length > 0) {
-          const activeWs = currentWorkspace
-            ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || loadedWorkspaces[0]
+          const activeWs = currentWorkspaceRef.current
+            ? loadedWorkspaces.find((w) => w.id === currentWorkspaceRef.current?.id || w.slug === currentWorkspaceRef.current?.slug) || loadedWorkspaces[0]
             : loadedWorkspaces[0];
           setCurrentWorkspace(activeWs);
 
           if (activeWs.brands && activeWs.brands.length > 0) {
-            const activeBrand = currentBrand
-              ? activeWs.brands.find((b) => b.id === currentBrand.id) || activeWs.brands[0]
+            const activeBrand = currentBrandRef.current
+              ? activeWs.brands.find((b) => b.id === currentBrandRef.current?.id) || activeWs.brands[0]
               : activeWs.brands[0];
             setCurrentBrand(activeBrand);
           }
-        }
-      } else {
-        // Fallback to Django API /api/w
-        try {
-          const wsList = await apiFetch<any[]>("/api/w");
-          if (Array.isArray(wsList) && wsList.length > 0) {
-            const loadedWorkspaces: Workspace[] = wsList.map((ws: any) => ({
-              id: ws.id,
-              name: ws.name,
-              slug: ws.slug,
-              role: (ws.role || "owner") as UserRole,
-              brands: ws.brands || [],
-            }));
-            setWorkspaces(loadedWorkspaces);
-            const activeWs = currentWorkspace
-              ? loadedWorkspaces.find((w) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || loadedWorkspaces[0]
-              : loadedWorkspaces[0];
-            setCurrentWorkspace(activeWs);
-            if (activeWs.brands && activeWs.brands.length > 0) {
-              const activeBrand = currentBrand
-                ? activeWs.brands.find((b) => b.id === currentBrand.id) || activeWs.brands[0]
-                : activeWs.brands[0];
-              setCurrentBrand(activeBrand);
-            }
-          }
-        } catch {
-          // Non-fatal fallback
         }
       }
     } catch (err) {
       console.error("Error loading user organizations:", err);
     }
-  }, [currentWorkspace, currentBrand]);
+  }, []);
 
   const refreshAuth = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
     try {
       // Check Firebase auth first
       if (firebaseAuth.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken();
+        setAuthBearerToken(token);
         await loadUserData(firebaseAuth.currentUser.uid, firebaseAuth.currentUser.email || "");
         return;
       }
 
-      // Check Supabase session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserData(session.user.id, session.user.email || "");
-        return;
-      }
-
-      // Fallback to Django session /api/auth/me
+      // Check Django session /api/auth/me
       try {
         const meData = await apiFetch<any>("/api/auth/me");
         if (meData?.user) {
           setUser(meData.user);
           if (meData.workspaces && meData.workspaces.length > 0) {
             setWorkspaces(meData.workspaces);
-            const activeWs = currentWorkspace
-              ? meData.workspaces.find((w: any) => w.id === currentWorkspace.id || w.slug === currentWorkspace.slug) || meData.workspaces[0]
+            const activeWs = currentWorkspaceRef.current
+              ? meData.workspaces.find((w: any) => w.id === currentWorkspaceRef.current?.id || w.slug === currentWorkspaceRef.current?.slug) || meData.workspaces[0]
               : meData.workspaces[0];
             setCurrentWorkspace(activeWs);
             if (activeWs.brands && activeWs.brands.length > 0) {
-              const activeBrand = currentBrand
-                ? activeWs.brands.find((b: any) => b.id === currentBrand.id) || activeWs.brands[0]
+              const activeBrand = currentBrandRef.current
+                ? activeWs.brands.find((b: any) => b.id === currentBrandRef.current?.id) || activeWs.brands[0]
                 : activeWs.brands[0];
               setCurrentBrand(activeBrand);
             }
@@ -217,6 +196,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
       } catch {}
+
+      // Check Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserData(session.user.id, session.user.email || "");
+        return;
+      }
 
       setUser(null);
       setWorkspaces([]);
@@ -232,8 +218,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } finally {
       setIsLoading(false);
+      isRefreshingRef.current = false;
     }
-  }, [isPublicRoute, loadUserData, router, pathname, currentWorkspace, currentBrand]);
+  }, [isPublicRoute, pathname, router, loadUserData]);
 
   useEffect(() => {
     ensureCsrf();
@@ -242,11 +229,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen to Firebase ID token changes
     const unsubscribeFirebase = onIdTokenChanged(firebaseAuth, async (fbUser: FirebaseUser | null) => {
       if (fbUser) {
+        const token = await fbUser.getIdToken();
+        setAuthBearerToken(token);
         await loadUserData(fbUser.uid, fbUser.email || "");
         if (pathname === "/login" || pathname === "/register") {
           const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
           router.push(next);
         }
+      } else {
+        setAuthBearerToken(null);
       }
     });
 
@@ -280,7 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribeFirebase();
       subscription.unsubscribe();
     };
-  }, [pathname, loadUserData, refreshAuth, isPublicRoute, router]);
+  }, []); // Only runs ONCE on mount!
 
   // Firebase / Google OAuth Sign-In
   const signInWithGoogle = async () => {

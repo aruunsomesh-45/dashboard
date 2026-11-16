@@ -71,6 +71,15 @@ def _fetch_supabase_user(token: str) -> dict | None:
     if os.environ.get("SUPABASE_JWT_SECRET"):
         return _verify_jwt_locally(token)
 
+    # Fast bail-out: Supabase tokens use HS256. If token is RS256 (Firebase) or not HS256, skip immediately
+    try:
+        import jwt
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") != "HS256":
+            return None
+    except Exception:
+        return None
+
     if not _supabase_url() or not _supabase_anon_key():
         logger.error("Supabase auth is not configured (SUPABASE_JWT_SECRET or SUPABASE_URL+SUPABASE_ANON_KEY).")
         return None

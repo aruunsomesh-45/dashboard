@@ -71,10 +71,20 @@ def verify_firebase_id_token(token: str) -> Optional[dict]:
     except Exception:
         return None
 
+    # Check cache for previously verified token
+    from django.core.cache import cache
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    cache_key = f"fb_claim:{token_hash}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     # 3. Production Firebase verification
     try:
         get_firebase_app()
         decoded_claims = firebase_auth_admin.verify_id_token(token, check_revoked=False)
+        if decoded_claims:
+            cache.set(cache_key, decoded_claims, timeout=300)
         return decoded_claims
     except Exception as exc:
         logger.debug("Firebase admin verify_id_token failed: %s", exc)
