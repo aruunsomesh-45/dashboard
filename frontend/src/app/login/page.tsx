@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   RotateCw,
   AlertCircle,
-  Zap,
 } from "lucide-react";
 
 const RESEND_SECONDS = 60;
@@ -103,20 +102,6 @@ function LoginContent() {
     }
   };
 
-  // C. 1-Click Quick Dev Login
-  const handleQuickDevLogin = async () => {
-    setError(null);
-    setSuccessMsg("Logging in to Aruunsomesh Store workspace...");
-    setIsLoading(true);
-    setEmail("aruunsomesh@gmail.com");
-    setPassword("125EastSecure2026!");
-    const { error: loginError } = await signInWithEmail("aruunsomesh@gmail.com", "125EastSecure2026!");
-    setIsLoading(false);
-    if (loginError) {
-      setError(loginError.message || "Failed quick demo login.");
-    }
-  };
-
   // D. Email OTP Request
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -195,35 +180,6 @@ function LoginContent() {
               Multi-Tenant Workspace Cockpit
             </p>
           </div>
-        </div>
-
-        {/* 1-Click Quick Demo Login (Instant Access) */}
-        <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-amber-900 flex items-center space-x-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
-              <span>1-Click Dev Workspace Access</span>
-            </span>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-800">
-              Localhost
-            </span>
-          </div>
-          <p className="text-[11px] text-amber-800">
-            Instantly enters the <strong>Aruunsomesh Store</strong> cockpit with Owner privileges.
-          </p>
-          <button
-            type="button"
-            onClick={handleQuickDevLogin}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Zap className="w-3.5 h-3.5" />
-            )}
-            <span>Enter Cockpit (1-Click Demo)</span>
-          </button>
         </div>
 
         {/* Status Alerts */}
