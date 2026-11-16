@@ -111,7 +111,7 @@ test.describe("Overview page", () => {
   test("FE-OVR-01 renders all five source sections and net-sales KPI from API", async ({ page }) => {
     await signedIn(page);
     await goto(page, "/");
-    await expect(page.getByRole("heading", { name: "Commerce Intelligence Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Executive Overview" })).toBeVisible();
     const api = await (await page.request.get(statsUrl())).json();
     await expect(page.getByText(inr(Math.round(api.metrics.net_sales_minor / 30))).first()).toBeVisible();
     for (const t of [/Shopify/i, /Razorpay/i, /Meta/i, /Instagram/i]) await expect(page.getByText(t).first()).toBeVisible();

@@ -110,7 +110,7 @@ export default function OverviewPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-ivory-300">
           <div>
             <h2 className="text-xl font-bold text-charcoal-900 tracking-tight">
-              Commerce Intelligence Overview
+              Executive Overview
             </h2>
             <p className="text-xs text-charcoal-500 mt-0.5">
               Live normalized metrics cockpit for{" "}

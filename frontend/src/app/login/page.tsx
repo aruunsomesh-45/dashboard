@@ -189,7 +189,7 @@ function LoginContent() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-charcoal-900">
-              125 East Commerce Intelligence
+              125 East
             </h1>
             <p className="text-xs text-charcoal-500">
               Multi-Tenant Workspace Cockpit

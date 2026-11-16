@@ -3,7 +3,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "125 East Commerce Intelligence",
+  title: "125 East",
   description: "Unified Multi-tenant Analytics and Operations Platform",
 };
 

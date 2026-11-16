@@ -4,7 +4,7 @@ test.describe("Auth & route guards", () => {
   test("FE-AUTH-01 login page renders all controls", async ({ page }) => {
     await mockSupabase(page);
     await goto(page, "/login");
-    await expect(page.getByRole("heading", { name: "125 East Commerce Intelligence" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "125 East" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Google/ })).toBeVisible();
     await expect(page.getByPlaceholder("founder@125east.com")).toBeVisible();
     await expect(page.getByRole("button", { name: /Send Login Code/ })).toBeDisabled();

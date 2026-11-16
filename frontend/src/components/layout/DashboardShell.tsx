@@ -99,9 +99,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 <h1 className="text-sm font-semibold tracking-wide text-ivory-100">
                   125 East
                 </h1>
-                <p className="text-[11px] text-forest-500 font-medium tracking-tight">
-                  Commerce Intelligence
-                </p>
               </div>
             </div>
           </div>
