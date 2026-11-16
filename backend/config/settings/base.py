@@ -175,6 +175,7 @@ SPECTACULAR_SETTINGS = {
 
 # Security and routing
 APPEND_SLASH = False
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
 # Cache & Session Configuration (In-memory LocMemCache & DB sessions; no Redis required)
 CACHES = {

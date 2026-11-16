@@ -7,6 +7,19 @@ const nextConfig = {
   reactStrictMode: true,
   skipTrailingSlashRedirect: true,
   output: isExport ? "export" : (process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined),
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin-allow-popups",
+          },
+        ],
+      },
+    ];
+  },
   ...(isExport ? {} : {
     async rewrites() {
       const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:8001";
