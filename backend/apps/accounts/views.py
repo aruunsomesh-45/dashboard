@@ -86,7 +86,8 @@ class LoginView(APIView):
         # Full login
         auth_login(request, user)
         request.session.cycle_key()  # Rotate session ID to protect against session fixation
-        request.session["mfa_verified"] = False
+        # In local debug mode, auto-verify MFA for unenrolled users so local testing is seamless
+        request.session["mfa_verified"] = getattr(settings, "DEBUG", False) and not user.mfa_enabled
 
         # Build list of user's workspaces
         memberships = WorkspaceMember.objects.filter(user=user, workspace__is_active=True).select_related("workspace")
