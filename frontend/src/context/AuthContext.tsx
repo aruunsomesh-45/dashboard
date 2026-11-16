@@ -294,10 +294,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: null };
         }
       } catch (fbErr: any) {
-        console.warn("Firebase Google popup fallback to Supabase OAuth:", fbErr);
+        if (fbErr?.code === "auth/popup-closed-by-user") {
+          return { error: null }; // User closed popup intentionally
+        }
+        if (fbErr?.code === "auth/unauthorized-domain") {
+          return {
+            error: new Error(
+              "localhost is not in Firebase authorized domains. Please add localhost to Firebase Console -> Authentication -> Settings -> Authorized domains."
+            ),
+          };
+        }
+        console.warn("Firebase Google popup error:", fbErr);
+        if (fbErr?.code && !fbErr.message?.includes("API key not valid")) {
+          return { error: new Error(friendlyAuthError(fbErr)) };
+        }
       }
 
-      // Fallback to Supabase OAuth
+      // Fallback to Supabase OAuth if Firebase not configured
       const origin = window.location.origin;
       const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
       const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
