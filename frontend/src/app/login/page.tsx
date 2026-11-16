@@ -6,13 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   Mail,
+  Lock,
   ArrowRight,
   Loader2,
   KeyRound,
   CheckCircle2,
   RotateCw,
   AlertCircle,
-  HelpCircle,
+  Zap,
 } from "lucide-react";
 
 const RESEND_SECONDS = 60;
@@ -22,9 +23,11 @@ const COOLDOWN_KEY = "125east_otp_next_at";
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signInWithGoogle, signInWithOtp, verifyOtp } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signInWithOtp, verifyOtp } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [authMode, setAuthMode] = useState<"password" | "otp">("password");
+  const [email, setEmail] = useState("aruunsomesh@gmail.com");
+  const [password, setPassword] = useState("125EastSecure2026!");
   const [otpSent, setOtpSent] = useState(false);
   const [otpToken, setOtpToken] = useState("");
   const [countdown, setCountdown] = useState(0);
@@ -49,12 +52,13 @@ function LoginContent() {
       setError("Your session expired. Please sign in again.");
     }
 
-    // Cooldown survives reloads so refreshing the page can't be used to spam the mailer.
+    // Cooldown survives reloads
     const [cdEmail, cdAt] = (localStorage.getItem(COOLDOWN_KEY) || "|0").split("|");
     const remaining = cdEmail === targetEmail.trim().toLowerCase() ? Math.ceil((Number(cdAt) - Date.now()) / 1000) : 0;
     if (remaining > 0) setCountdown(Math.min(remaining, RESEND_SECONDS));
 
     if (paramStep === "verify") {
+      setAuthMode("otp");
       setOtpSent(true);
       setSuccessMsg("Enter the 6-digit code from your email to complete sign in.");
     }
@@ -79,7 +83,41 @@ function LoginContent() {
     }
   };
 
-  // B. Email OTP Request
+  // B. Email + Password Sign-In
+  const handlePasswordSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+
+    setError(null);
+    setSuccessMsg(null);
+    setIsLoading(true);
+
+    const { error: loginError } = await signInWithEmail(email, password);
+    setIsLoading(false);
+
+    if (loginError) {
+      setError(loginError.message || "Invalid email or password.");
+    }
+  };
+
+  // C. 1-Click Quick Dev Login
+  const handleQuickDevLogin = async () => {
+    setError(null);
+    setSuccessMsg("Logging in to Aruunsomesh Store workspace...");
+    setIsLoading(true);
+    setEmail("aruunsomesh@gmail.com");
+    setPassword("125EastSecure2026!");
+    const { error: loginError } = await signInWithEmail("aruunsomesh@gmail.com", "125EastSecure2026!");
+    setIsLoading(false);
+    if (loginError) {
+      setError(loginError.message || "Failed quick demo login.");
+    }
+  };
+
+  // D. Email OTP Request
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!email) {
@@ -111,7 +149,7 @@ function LoginContent() {
     }
   };
 
-  // B. Email OTP Verification
+  // E. Email OTP Verification
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -154,16 +192,48 @@ function LoginContent() {
               125 East Commerce Intelligence
             </h1>
             <p className="text-xs text-charcoal-500">
-              Secure Multi-Tenant Authentication Cockpit
+              Multi-Tenant Workspace Cockpit
             </p>
           </div>
+        </div>
+
+        {/* 1-Click Quick Demo Login (Instant Access) */}
+        <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-amber-900 flex items-center space-x-1.5">
+              <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+              <span>1-Click Dev Workspace Access</span>
+            </span>
+            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-800">
+              Localhost
+            </span>
+          </div>
+          <p className="text-[11px] text-amber-800">
+            Instantly enters the <strong>Aruunsomesh Store</strong> cockpit with Owner privileges.
+          </p>
+          <button
+            type="button"
+            onClick={handleQuickDevLogin}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Zap className="w-3.5 h-3.5" />
+            )}
+            <span>Enter Cockpit (1-Click Demo)</span>
+          </button>
         </div>
 
         {/* Status Alerts */}
         {error && (
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start space-x-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
-            <span>{error}</span>
+            <div className="flex-1 space-y-1">
+              <p className="font-semibold">Authentication Notice</p>
+              <p className="text-[11px] leading-relaxed text-red-600">{error}</p>
+            </div>
           </div>
         )}
 
@@ -207,12 +277,103 @@ function LoginContent() {
         <div className="relative flex items-center justify-center">
           <div className="border-t border-ivory-300 w-full" />
           <span className="bg-white px-3 text-[10px] uppercase tracking-wider text-charcoal-400 font-semibold absolute">
-            or sign in with email code
+            or sign in with credentials
           </span>
         </div>
 
-        {/* Method 2: Email OTP */}
-        {!otpSent ? (
+        {/* Tab Switcher: Password vs OTP */}
+        <div className="flex rounded-lg bg-ivory-200/80 p-1 border border-ivory-300 text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode("password");
+              setError(null);
+            }}
+            className={`flex-1 py-1.5 rounded-md font-semibold transition-all ${
+              authMode === "password"
+                ? "bg-white text-charcoal-900 shadow-sm"
+                : "text-charcoal-600 hover:text-charcoal-900"
+            }`}
+          >
+            Password
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode("otp");
+              setError(null);
+            }}
+            className={`flex-1 py-1.5 rounded-md font-semibold transition-all ${
+              authMode === "otp"
+                ? "bg-white text-charcoal-900 shadow-sm"
+                : "text-charcoal-600 hover:text-charcoal-900"
+            }`}
+          >
+            Email OTP Code
+          </button>
+        </div>
+
+        {/* Mode A: Password Login Form */}
+        {authMode === "password" && (
+          <form onSubmit={handlePasswordSignIn} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+                Work Email Address
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="aruunsomesh@gmail.com"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+                />
+                <Mail className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-charcoal-700">
+                  Password
+                </label>
+              </div>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+                />
+                <Lock className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading || !email || !password}
+              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-forest-900 hover:bg-forest-800 text-ivory-100 text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In to Cockpit</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
+
+        {/* Mode B: Email OTP Form */}
+        {authMode === "otp" && !otpSent && (
           <form onSubmit={handleSendOtp} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-charcoal-700 mb-1">
@@ -224,8 +385,8 @@ function LoginContent() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="founder@125east.com"
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500"
+                  placeholder="aruunsomesh@gmail.com"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
                 />
                 <Mail className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -267,8 +428,10 @@ function LoginContent() {
               </button>
             </div>
           </form>
-        ) : (
-          /* Step 2: Enter 6-digit OTP */
+        )}
+
+        {/* Mode B2: Enter 6-digit OTP */}
+        {authMode === "otp" && otpSent && (
           <form onSubmit={handleVerifyOtp} className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -293,7 +456,7 @@ function LoginContent() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@brand.com"
+                  placeholder="aruunsomesh@gmail.com"
                   className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-ivory-300 bg-ivory-50 text-charcoal-800 focus:outline-none focus:ring-1 focus:ring-terracotta-500"
                 />
                 <Mail className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />

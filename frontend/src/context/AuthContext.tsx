@@ -308,22 +308,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           queryParams: { prompt: "select_account" },
         },
       });
-      return { error: error ? new Error(friendlyAuthError(error)) : null };
+      if (error) {
+        if (error.message?.includes("Unsupported provider") || (error as any).error_code === "validation_failed") {
+          return {
+            error: new Error(
+              "Google Sign-In is not enabled yet in your Firebase or Supabase dashboard. Please sign in with Email & Password or use the 1-Click Dev Login below."
+            ),
+          };
+        }
+        return { error: new Error(friendlyAuthError(error)) };
+      }
+      return { error: null };
     } catch (err: any) {
       return { error: err };
     }
   };
 
-  // Firebase Email/Password Sign-In
+  // Email/Password Sign-In (Unified Django Backend + Firebase sync)
   const signInWithEmail = async (email: string, password: string) => {
     try {
-      const cred = await signInWithEmailAndPassword(firebaseAuth, email.trim().toLowerCase(), password);
-      if (cred.user) {
-        await loadUserData(cred.user.uid, cred.user.email || "");
-        const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-        router.push(next);
-        return { error: null };
+      const cleanEmail = email.trim().toLowerCase();
+
+      // 1. Authenticate with Django Backend directly
+      try {
+        await ensureCsrf();
+        const res = await apiFetch<any>("/api/auth/login/", {
+          method: "POST",
+          body: JSON.stringify({ email: cleanEmail, password }),
+        });
+
+        if (res?.mfa_required) {
+          router.push(`/mfa-challenge?email=${encodeURIComponent(cleanEmail)}`);
+          return { error: null };
+        }
+
+        if (res?.user) {
+          setUser(res.user);
+          if (Array.isArray(res.workspaces) && res.workspaces.length > 0) {
+            setWorkspaces(res.workspaces);
+            const activeWs = res.workspaces[0];
+            setCurrentWorkspace(activeWs);
+            if (activeWs.brands && activeWs.brands.length > 0) {
+              setCurrentBrand(activeWs.brands[0]);
+            }
+          }
+          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.push(next);
+          return { error: null };
+        }
+      } catch (backendErr: any) {
+        console.warn("Backend password login error, trying Firebase fallback:", backendErr);
+        // If the error message is specific (e.g. invalid credentials), capture it
+        if (backendErr?.message && !backendErr.message.includes("fetch")) {
+          return { error: new Error(backendErr.message) };
+        }
       }
+
+      // 2. Firebase Email/Password Fallback
+      try {
+        const cred = await signInWithEmailAndPassword(firebaseAuth, cleanEmail, password);
+        if (cred.user) {
+          await loadUserData(cred.user.uid, cred.user.email || "");
+          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.push(next);
+          return { error: null };
+        }
+      } catch (fbErr: any) {
+        return { error: new Error(friendlyAuthError(fbErr)) };
+      }
+
       return { error: null };
     } catch (err: any) {
       return { error: new Error(friendlyAuthError(err)) };
