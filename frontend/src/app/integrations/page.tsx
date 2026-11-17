@@ -130,11 +130,16 @@ export default function ConnectAppsPage() {
     DEFAULT_APPS.map((a) => ({ ...a, status: "disconnected", account_identifier: "", last_synced_at: null }))
   );
   const [selectedApp, setSelectedApp] = useState<AppConnector | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [cardFormValues, setCardFormValues] = useState<Record<string, Record<string, string>>>({});
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
+  const [savingCardId, setSavingCardId] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [cardSaveNotice, setCardSaveNotice] = useState<Record<string, string>>({});
+  const [cardSaveError, setCardSaveError] = useState<Record<string, string>>({});
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   const loadIntegrations = async () => {
@@ -167,6 +172,74 @@ export default function ConnectAppsPage() {
   useEffect(() => {
     loadIntegrations();
   }, [currentWorkspace?.slug, currentBrand?.id]);
+
+  const toggleCardExpand = (appId: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+        // Pre-fill card form values if account_identifier exists
+        const app = apps.find((a) => a.id === appId);
+        if (app && app.account_identifier) {
+          setCardFormValues((prev) => ({
+            ...prev,
+            [appId]: { ...prev[appId], [app.fields[0].key]: app.account_identifier },
+          }));
+        }
+      }
+      return next;
+    });
+    // Clear any card-level notices
+    setCardSaveNotice((prev) => { const n = { ...prev }; delete n[appId]; return n; });
+    setCardSaveError((prev) => { const n = { ...prev }; delete n[appId]; return n; });
+  };
+
+  const handleCardSaveCredentials = async (app: AppConnector) => {
+    if (!currentWorkspace || !currentBrand) return;
+    const values = cardFormValues[app.id] || {};
+
+    setSavingCardId(app.id);
+    setCardSaveError((prev) => { const n = { ...prev }; delete n[app.id]; return n; });
+    try {
+      await apiFetch(`/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/integrations/`, {
+        method: "POST",
+        body: JSON.stringify({
+          provider: app.provider,
+          account_identifier: values[app.fields[0].key] || "",
+          credentials: values,
+        }),
+      });
+
+      let notice = `Credentials encrypted & stored for ${app.name}.`;
+      if (app.provider === "shopify") {
+        const syncRes = await apiFetch<{ message?: string }>(
+          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/shopify/sync-now/`,
+          { method: "POST" }
+        );
+        if (syncRes.message) notice = syncRes.message;
+      } else if (app.provider === "meta_ads") {
+        const syncRes = await apiFetch<{ message?: string }>(
+          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/`,
+          { method: "POST" }
+        );
+        if (syncRes.message) notice = syncRes.message;
+      }
+
+      await loadIntegrations();
+      setCardSaveNotice((prev) => ({ ...prev, [app.id]: notice }));
+      setTimeout(() => {
+        setExpandedCards((prev) => { const n = new Set(prev); n.delete(app.id); return n; });
+        setCardSaveNotice((prev) => { const n = { ...prev }; delete n[app.id]; return n; });
+      }, 2000);
+    } catch (err: any) {
+      setCardSaveError((prev) => ({ ...prev, [app.id]: err.message || "Failed to save or sync credentials." }));
+      await loadIntegrations();
+    } finally {
+      setSavingCardId(null);
+    }
+  };
 
   const handleOpenModal = (app: AppConnector) => {
     setSelectedApp(app);
@@ -398,7 +471,14 @@ export default function ConnectAppsPage() {
 
         {/* 5 Apps Connection Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {apps.map((app) => (
+          {apps.map((app) => {
+            const isExpanded = expandedCards.has(app.id);
+            const cardValues = cardFormValues[app.id] || {};
+            const cardNotice = cardSaveNotice[app.id];
+            const cardError = cardSaveError[app.id];
+            const isSavingThis = savingCardId === app.id;
+
+            return (
             <div
               key={app.id}
               className="bg-white rounded-xl border border-ivory-300 shadow-sm p-6 space-y-4 hover:border-terracotta-400 transition-colors flex flex-col justify-between"
@@ -430,6 +510,71 @@ export default function ConnectAppsPage() {
                 <p className="text-xs text-charcoal-600 leading-relaxed">{app.description}</p>
               </div>
 
+              {/* Inline Credential Form (always expandable) */}
+              {isExpanded && (
+                <div className="border-t border-ivory-200 pt-4 space-y-3 animate-in slide-in-from-top-2 fade-in duration-150">
+                  {cardNotice ? (
+                    <div className="p-4 text-center space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs font-bold text-charcoal-900">{cardNotice}</div>
+                    </div>
+                  ) : (
+                    <>
+                      {cardError && (
+                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start space-x-2 text-xs">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-rose-600" />
+                          <span>{cardError}</span>
+                        </div>
+                      )}
+
+                      {app.fields.map((f) => (
+                        <div key={f.key} className="space-y-1">
+                          <label className="text-xs font-semibold text-charcoal-800">{f.label}</label>
+                          <input
+                            type={f.type || "text"}
+                            placeholder={f.placeholder}
+                            value={cardValues[f.key] || ""}
+                            onChange={(e) =>
+                              setCardFormValues((prev) => ({
+                                ...prev,
+                                [app.id]: { ...prev[app.id], [f.key]: e.target.value },
+                              }))
+                            }
+                            className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-terracotta-500"
+                          />
+                        </div>
+                      ))}
+
+                      <div className="text-[11px] text-charcoal-500 flex items-center space-x-1.5">
+                        <Lock className="w-3 h-3 text-emerald-600" />
+                        <span>Keys are encrypted with AES-256-GCM before saving.</span>
+                      </div>
+
+                      <div className="flex items-center justify-end space-x-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleCardExpand(app.id)}
+                          className="px-3 py-1.5 border border-ivory-300 rounded-lg text-charcoal-700 text-xs font-semibold hover:bg-ivory-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleCardSaveCredentials(app)}
+                          disabled={isSavingThis || app.fields.some((f) => !(cardValues[f.key]?.trim()))}
+                          className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg text-xs font-semibold transition-colors shadow-sm disabled:opacity-50"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          <span>{isSavingThis ? "Connecting & Syncing..." : "Save & Connect"}</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Action Footer */}
               <div className="pt-4 border-t border-ivory-200 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="text-charcoal-400 text-[11px]">
@@ -455,10 +600,10 @@ export default function ConnectAppsPage() {
                       </button>
 
                       <button
-                        onClick={() => handleOpenModal(app)}
+                        onClick={() => toggleCardExpand(app.id)}
                         className="px-3 py-1.5 bg-white hover:bg-ivory-50 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors"
                       >
-                        Configure
+                        {isExpanded ? "Close" : "Configure"}
                       </button>
 
                       <button
@@ -470,19 +615,29 @@ export default function ConnectAppsPage() {
                     </>
                   )}
 
-                  {app.status === "disconnected" && (
+                  {app.status === "disconnected" && !isExpanded && (
                     <button
-                      onClick={() => handleOpenModal(app)}
+                      onClick={() => toggleCardExpand(app.id)}
                       className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg font-semibold transition-colors shadow-sm"
                     >
                       <PlugZap className="w-3.5 h-3.5" />
                       <span>Connect {app.name}</span>
                     </button>
                   )}
+
+                  {app.status === "disconnected" && isExpanded && (
+                    <button
+                      onClick={() => toggleCardExpand(app.id)}
+                      className="px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors text-xs"
+                    >
+                      Close
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Configuration Modal */}
