@@ -36,6 +36,14 @@ export async function ensureCsrf(): Promise<void> {
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  return (await apiFetchWithStatus<T>(endpoint, options)).data;
+}
+
+/** Same as apiFetch, but also returns the HTTP status code (used to show real status in UI messages). */
+export async function apiFetchWithStatus<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<{ status: number; data: T }> {
   const isExternal = endpoint.startsWith("http://") || endpoint.startsWith("https://");
   const url = isExternal ? endpoint : (endpoint.startsWith("/") ? endpoint : `/${endpoint}`);
   const method = (options.method ?? "GET").toUpperCase();
@@ -117,9 +125,13 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   }
 
   if (typeof window !== "undefined") {
-    const sample = typeof responseData === "object" && responseData !== null
-      ? (Array.isArray(responseData) ? responseData.slice(0, 2) : responseData)
-      : responseData;
+    // Keep the logged sample small: first 2 items of arrays, max 300 chars overall.
+    let sample: string | undefined;
+    try {
+      sample = JSON.stringify(Array.isArray(responseData) ? responseData.slice(0, 2) : responseData)?.slice(0, 300);
+    } catch {
+      sample = undefined;
+    }
     console.log(`[API ${method}] ${url} -> Status: ${response.status}`, {
       status: response.status,
       ok: response.ok,
@@ -154,8 +166,8 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   }
 
   if (response.status === 204 || responseData === null) {
-    return {} as T;
+    return { status: response.status, data: {} as T };
   }
 
-  return responseData as T;
+  return { status: response.status, data: responseData as T };
 }

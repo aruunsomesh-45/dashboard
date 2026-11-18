@@ -4,12 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch, apiFetchWithStatus } from "@/lib/api";
-import { USE_DEMO_APIS, demoUrl, demoUrlLabel, DEMO_ONLY_MESSAGE } from "@/lib/demoApis";
 import { DelhiveryLogo } from "@/components/icons/AppLogos";
-import { AlertTriangle, CheckCircle2, Clock, RotateCcw, Search, Truck, RefreshCw } from "lucide-react";
-
-// Everything here comes from the backend (stored shipments). No client-side sample data, and no claim of a
-// live carrier connection: an empty brand shows empty states, API failures show an error.
+import { AlertTriangle, CheckCircle2, Clock, RotateCcw, Search, RefreshCw } from "lucide-react";
 
 interface Summary {
   total_shipments: number;
@@ -50,20 +46,10 @@ export default function LogisticsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [apiSource, setApiSource] = useState<"backend" | "demo_countries">("backend");
-  const [countries, setCountries] = useState<Array<{ name: string; code: string }>>([]);
-  const [countriesError, setCountriesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
-
-  // Submit form state for dispatch/NDR action
-  const [inputAwb, setInputAwb] = useState("DEL10398472910");
-  const [selectedCarrier, setSelectedCarrier] = useState("Delhivery");
-  const [selectedCountry, setSelectedCountry] = useState("India");
-  const [ndrActionType, setNdrActionType] = useState("reattempt");
-  const [submitting, setSubmitting] = useState(false);
 
   const base = currentWorkspace && currentBrand ? `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/logistics` : null;
 
@@ -71,96 +57,21 @@ export default function LogisticsPage() {
     setLoading(true);
     setNotice(null);
 
-    setCountriesError(null);
-
-    if (!USE_DEMO_APIS) {
-      try {
-        if (!base) throw new Error("No workspace or brand is selected.");
-        const [s, list] = await Promise.all([
-          apiFetch<Summary>(`${base}/summary`),
-          apiFetch<Shipment[]>(`${base}/shipments?limit=100`),
-        ]);
-        setSummary(s);
-        setShipments(list);
-        setApiSource("backend");
-      } catch (err: any) {
-        setSummary(null);
-        setShipments([]);
-        setNotice({ kind: "error", text: `Could not load shipments from the backend: ${err?.message || "Unknown error"}` });
-      } finally {
+    try {
+      if (!base) {
         setLoading(false);
+        return;
       }
-      return;
-    }
-
-    // Demo mode: delivery destinations from JSONPlaceholder /users addresses (NEXT_PUBLIC_DEMO_LOGISTICS_API).
-    // (REST Countries v3.1 was retired and v5 needs an API key, so it can no longer be used keyless.)
-    setApiSource("demo_countries");
-    try {
-      const cRes = await apiFetch<Array<{ id: number; address?: { city?: string; zipcode?: string } }>>(demoUrl("logistics"));
-      if (!Array.isArray(cRes)) throw new Error("Demo API did not return a list of destinations.");
-      const sorted = cRes
-        .filter((u) => u.address?.city)
-        .map((u) => ({ name: String(u.address!.city), code: String(u.address!.zipcode || u.id) }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .slice(0, 30);
-      setCountries(sorted);
-    } catch (cErr: any) {
-      setCountries([]);
-      setCountriesError(`Could not load delivery destinations from the demo API: ${cErr?.message || "Unknown error"}`);
-    }
-
-    try {
-      // Sample shipments shown in demo mode only (the demo API has no shipment data).
-      const demoList: Shipment[] = [
-        {
-          id: "shp_1",
-          awb: "DEL10398472910",
-          carrier: "Delhivery Surface",
-          status: "ndr",
-          ndr_count: 1,
-          dispatched_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-          delivered_at: null,
-        },
-        {
-          id: "shp_2",
-          awb: "DEL99281748291",
-          carrier: "Delhivery Air Express",
-          status: "delivered",
-          ndr_count: 0,
-          dispatched_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-          delivered_at: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          id: "shp_3",
-          awb: "DEL48192049182",
-          carrier: "Delhivery Surface",
-          status: "in_transit",
-          ndr_count: 0,
-          dispatched_at: new Date(Date.now() - 86400000).toISOString(),
-          delivered_at: null,
-        },
-        {
-          id: "shp_4",
-          awb: "SR84920194821",
-          carrier: "Shiprocket / Blue Dart",
-          status: "out_for_delivery",
-          ndr_count: 0,
-          dispatched_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-          delivered_at: null,
-        },
-      ];
-
-      setSummary({
-        total_shipments: 4,
-        in_transit_count: 1,
-        delivered_count: 1,
-        ndr_count: 1,
-        ndr_rate_percentage: 25.0,
-        rto_rate_percentage: 0.0,
-        avg_delivery_days: 2.8,
-      });
-      setShipments(demoList);
+      const [s, list] = await Promise.all([
+        apiFetch<Summary>(`${base}/summary`),
+        apiFetch<Shipment[]>(`${base}/shipments?limit=100`),
+      ]);
+      setSummary(s);
+      setShipments(list);
+    } catch (err: any) {
+      setSummary(null);
+      setShipments([]);
+      setNotice({ kind: "error", text: `Could not load shipments: ${err?.message || "Unknown error"}` });
     } finally {
       setLoading(false);
     }
@@ -174,22 +85,12 @@ export default function LogisticsPage() {
     setActionLoading(awb);
     setNotice(null);
     try {
-      let status: number;
-      if (!USE_DEMO_APIS) {
-        if (!base) throw new Error("No workspace or brand is selected.");
-        ({ status } = await apiFetchWithStatus(`${base}/ndr/${awb}/action`, {
-          method: "POST",
-          body: JSON.stringify({ action: "reattempt" }),
-        }));
-      } else {
-        // Demo mode: httpbin echo (NEXT_PUBLIC_HTTPBIN_POST_API)
-        ({ status } = await apiFetchWithStatus(demoUrl("echo"), {
-          method: "POST",
-          body: JSON.stringify({ awb, action: "reattempt", source: "ndr_button" }),
-        }));
-      }
+      if (!base) throw new Error("No workspace or brand is selected.");
+      const { status } = await apiFetchWithStatus(`${base}/ndr/${awb}/action`, {
+        method: "POST",
+        body: JSON.stringify({ action: "reattempt" }),
+      });
       setNotice({ kind: "ok", text: `Re-attempt requested for AWB ${awb} (HTTP ${status}).` });
-      // Update local status to in_transit
       setShipments((prev) =>
         prev.map((s) => (s.awb === awb ? { ...s, status: "in_transit" } : s))
       );
@@ -197,70 +98,6 @@ export default function LogisticsPage() {
       setNotice({ kind: "error", text: err?.message || "The courier instruction failed" });
     } finally {
       setActionLoading(null);
-    }
-  };
-
-  const handleDispatchOrReattempt = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputAwb.trim()) {
-      setNotice({ kind: "error", text: "Please provide a valid AWB code." });
-      return;
-    }
-    if (!USE_DEMO_APIS) {
-      setNotice({ kind: "error", text: DEMO_ONLY_MESSAGE });
-      return;
-    }
-
-    setSubmitting(true);
-    setNotice(null);
-
-    const payload = {
-      awb: inputAwb.trim(),
-      carrier: selectedCarrier,
-      destination_country: selectedCountry,
-      action: ndrActionType,
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      // Demo mode: httpbin echo (NEXT_PUBLIC_HTTPBIN_POST_API)
-      const { status, data: res } = await apiFetchWithStatus<any>(demoUrl("echo"), {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      const data = res?.json;
-      if (!data?.awb) throw new Error(`Demo API returned HTTP ${status} but did not echo the instruction.`);
-      setNotice({
-        kind: "ok",
-        text: `Logistics instruction sent: HTTP ${status} from httpbin. Courier: ${data.carrier}, AWB: ${data.awb}, Destination: ${data.destination_country}.`,
-      });
-
-      // Insert or update shipment list
-      setShipments((prev) => {
-        const existing = prev.find((s) => s.awb === data.awb);
-        if (existing) {
-          return prev.map((s) =>
-            s.awb === data.awb ? { ...s, status: "in_transit" } : s
-          );
-        }
-        return [
-          {
-            id: `shp_${Date.now()}`,
-            awb: data.awb,
-            carrier: data.carrier,
-            status: "in_transit",
-            ndr_count: 0,
-            dispatched_at: new Date().toISOString(),
-            delivered_at: null,
-          },
-          ...prev,
-        ];
-      });
-    } catch (err: any) {
-      setNotice({ kind: "error", text: `Submission failed: ${err?.message || "Could not dispatch"}` });
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -287,10 +124,6 @@ export default function LogisticsPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-mono border bg-ivory-100 border-ivory-300 text-charcoal-700">
-              <span className={`w-2 h-2 rounded-full ${apiSource === "backend" ? "bg-emerald-500" : "bg-blue-500"}`} />
-              <span>{apiSource === "backend" ? "Backend DRF API" : "Demo: JSONPlaceholder destinations + sample shipments"}</span>
-            </span>
             <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span>Carrier API Ready</span>
@@ -349,108 +182,6 @@ export default function LogisticsPage() {
             </div>
             <div className="text-2xl font-bold text-charcoal-900 tracking-tight">{pct(summary?.rto_rate_percentage ?? null)}</div>
           </div>
-        </div>
-
-        {/* STEP 5: Interactive Courier Dispatch & NDR Action Form with Submit Button */}
-        <div className="bg-white rounded-xl border border-ivory-300 shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-ivory-200">
-            <div>
-              <h3 className="text-sm font-bold text-charcoal-900 flex items-center space-x-2">
-                <Truck className="w-4 h-4 text-slate-700" />
-                <span>Dispatch Shipment / Trigger NDR Recovery Action</span>
-              </h3>
-              <p className="text-xs text-charcoal-500 mt-0.5">
-                Transmit dispatch instructions or NDR delivery re-attempts to Delhivery / carrier hubs.
-              </p>
-            </div>
-            <span className="text-[11px] font-mono bg-ivory-100 px-2 py-0.5 rounded border border-ivory-200 text-charcoal-600">
-              {USE_DEMO_APIS ? `Demo Destination API: JSONPlaceholder (${countries.length} destinations loaded)` : "Demo mode off"}
-            </span>
-          </div>
-
-          {countriesError && (
-            <div role="alert" className="p-3 rounded-lg text-xs border bg-red-50 border-red-200 text-red-700">
-              {countriesError}
-            </div>
-          )}
-          {USE_DEMO_APIS && !loading && !countriesError && countries.length === 0 && (
-            <div className="p-3 rounded-lg text-xs border bg-ivory-50 border-ivory-300 text-charcoal-600">
-              The demo API returned no delivery destinations.
-            </div>
-          )}
-
-          <form onSubmit={handleDispatchOrReattempt} className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">AWB Code</label>
-              <input
-                type="text"
-                required
-                value={inputAwb}
-                onChange={(e) => setInputAwb(e.target.value)}
-                placeholder="DEL10398472910"
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:ring-1 focus:ring-slate-500"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Carrier Hub</label>
-              <select
-                value={selectedCarrier}
-                onChange={(e) => setSelectedCarrier(e.target.value)}
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 text-xs focus:ring-1 focus:ring-slate-500"
-              >
-                <option value="Delhivery Surface">Delhivery Surface</option>
-                <option value="Delhivery Air Express">Delhivery Air Express</option>
-                <option value="Shiprocket Direct">Shiprocket Direct</option>
-                <option value="Blue Dart Express">Blue Dart Express</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Destination (demo addresses)</label>
-              <select
-                value={selectedCountry}
-                onChange={(e) => setSelectedCountry(e.target.value)}
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 text-xs focus:ring-1 focus:ring-slate-500"
-              >
-                <option value="India">India (Domestic Standard)</option>
-                {countries.map((c) => (
-                  <option key={c.code} value={c.name}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Instruction Type</label>
-              <select
-                value={ndrActionType}
-                onChange={(e) => setNdrActionType(e.target.value)}
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 text-xs focus:ring-1 focus:ring-slate-500"
-              >
-                <option value="reattempt">NDR Delivery Re-attempt</option>
-                <option value="dispatch">New Milestone Dispatch</option>
-                <option value="address_update">Customer Address Update</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={submitting || !inputAwb.trim()}
-                className="w-full px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center space-x-1.5 shadow-sm"
-              >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Transmitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Truck className="w-3.5 h-3.5" />
-                    <span>Submit Courier Action</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
         </div>
 
         <div className="bg-white rounded-xl border border-ivory-300 shadow-sm overflow-hidden">

@@ -3,13 +3,9 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
-import { apiFetch, apiFetchWithStatus } from "@/lib/api";
-import { USE_DEMO_APIS, demoUrl, demoUrlLabel, DEMO_ONLY_MESSAGE } from "@/lib/demoApis";
+import { apiFetch } from "@/lib/api";
 import { RazorpayLogo } from "@/components/icons/AppLogos";
-import { CheckCircle2, XCircle, Clock, Search, AlertCircle, CreditCard, RefreshCw } from "lucide-react";
-
-// USE_DEMO_APIS=false: everything comes from the backend (PaymentAttempt rows written by signed Razorpay webhooks).
-// USE_DEMO_APIS=true: labelled test rows are echoed through httpbin. A failing API shows an error either way.
+import { CheckCircle2, XCircle, Clock, Search, AlertCircle, RefreshCw } from "lucide-react";
 
 interface PaymentStats {
   connected: boolean;
@@ -34,31 +30,6 @@ interface Transaction {
 
 function paise(minor: number): string {
   return "₹" + (minor / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 });
-}
-
-// Demo mode only: labelled test rows that are round-tripped through httpbin (see load()).
-const DEMO_TEST_TRANSACTIONS: Transaction[] = [
-  { id: "pay_demo_101", order_id: "order_125_001", amount_minor: 249900, currency: "INR", status: "captured", method: "upi", error_code: null, created_at: "2026-11-18T08:00:00Z" },
-  { id: "pay_demo_102", order_id: "order_125_002", amount_minor: 499900, currency: "INR", status: "captured", method: "card", error_code: null, created_at: "2026-11-18T05:00:00Z" },
-  { id: "pay_demo_103", order_id: "order_125_003", amount_minor: 129900, currency: "INR", status: "failed", method: "upi", error_code: "BAD_REQUEST_ERROR", created_at: "2026-11-18T02:00:00Z" },
-  { id: "pay_demo_104", order_id: "order_125_004", amount_minor: 349900, currency: "INR", status: "refunded", method: "netbanking", error_code: null, created_at: "2026-11-17T22:00:00Z" },
-];
-
-/** Compute the KPI cards from a list of transactions (demo mode). */
-function statsFromTransactions(rows: Transaction[]): PaymentStats {
-  const captured = rows.filter((r) => r.status === "captured");
-  const splits: Record<string, number> = {};
-  for (const r of captured) splits[r.method] = (splits[r.method] || 0) + 1;
-  for (const k of Object.keys(splits)) splits[k] = Math.round((splits[k] * 1000) / captured.length) / 10;
-  return {
-    connected: true,
-    payment_count: captured.length,
-    attempt_count: rows.length,
-    authorized_rate: rows.length ? Math.round((captured.length * 1000) / rows.length) / 10 : null,
-    total_captured_minor: captured.reduce((sum, r) => sum + r.amount_minor, 0),
-    total_fees_minor: null,
-    method_splits: splits,
-  };
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -91,51 +62,29 @@ export default function PaymentsPage() {
   const [payments, setPayments] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [apiSource, setApiSource] = useState<"backend" | "demo_httpbin">("backend");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [methodFilter, setMethodFilter] = useState("all");
-
-  // Submit form state for testing payments
-  const [testOrderId, setTestOrderId] = useState("order_125_test");
-  const [testAmount, setTestAmount] = useState("2499");
-  const [testMethod, setTestMethod] = useState("upi");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      if (!USE_DEMO_APIS) {
-        if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
-        const base = `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/payments`;
-        const [s, t] = await Promise.all([
-          apiFetch<PaymentStats>(`${base}/stats`),
-          apiFetch<Transaction[]>(`${base}/transactions?limit=100`),
-        ]);
-        setStats(s);
-        setPayments(t);
-        setApiSource("backend");
+      if (!currentWorkspace || !currentBrand) {
+        setLoading(false);
         return;
       }
-
-      // Demo mode: httpbin only echoes what it is sent, so we POST the labelled test
-      // transactions and render exactly what httpbin sends back (NEXT_PUBLIC_DEMO_RAZORPAY_API).
-      const echo = await apiFetch<{ json?: { transactions?: Transaction[] } }>(demoUrl("razorpay"), {
-        method: "POST",
-        body: JSON.stringify({ transactions: DEMO_TEST_TRANSACTIONS }),
-      });
-      const rows = echo?.json?.transactions;
-      if (!Array.isArray(rows)) throw new Error("Demo API response did not contain the echoed transactions.");
-      setApiSource("demo_httpbin");
-      setPayments(rows);
-      setStats(statsFromTransactions(rows));
+      const base = `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/payments`;
+      const [s, t] = await Promise.all([
+        apiFetch<PaymentStats>(`${base}/stats`),
+        apiFetch<Transaction[]>(`${base}/transactions?limit=100`),
+      ]);
+      setStats(s);
+      setPayments(t);
     } catch (err: any) {
       setStats(null);
       setPayments([]);
-      setError(`Could not load payments from the ${USE_DEMO_APIS ? "demo API" : "backend"}: ${err?.message || "Unknown error"}`);
+      setError(`Could not load payments: ${err?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -144,72 +93,6 @@ export default function PaymentsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const handleSubmitPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!testOrderId.trim() || Number(testAmount) <= 0) {
-      setSubmitError("Please provide a valid Order ID and Amount (> 0).");
-      return;
-    }
-    if (!USE_DEMO_APIS) {
-      setSubmitError(DEMO_ONLY_MESSAGE);
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitNotice(null);
-    setSubmitError(null);
-
-    const payload = {
-      event: "payment.captured",
-      payload: {
-        payment: {
-          entity: {
-            id: `pay_test_${Date.now().toString().slice(-6)}`,
-            order_id: testOrderId.trim(),
-            amount: Math.round(Number(testAmount) * 100), // paise
-            currency: "INR",
-            status: "captured",
-            method: testMethod,
-            created_at: Math.floor(Date.now() / 1000),
-          },
-        },
-      },
-    };
-
-    try {
-      // Demo mode: httpbin echoes the submitted webhook-style payload back
-      const { status, data: res } = await apiFetchWithStatus<any>(demoUrl("razorpay"), {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-
-      const paymentEntity = res?.json?.payload?.payment?.entity;
-      if (!paymentEntity) throw new Error(`Demo API returned HTTP ${status} but did not echo the payment.`);
-
-      setSubmitNotice(
-        `Test payment sent: HTTP ${status} from httpbin. Echoed transaction ${paymentEntity.id} for ₹${paymentEntity.amount / 100} (${String(paymentEntity.method).toUpperCase()}).`
-      );
-
-      // Add to local transactions table
-      const newTxn: Transaction = {
-        id: paymentEntity.id,
-        order_id: paymentEntity.order_id,
-        amount_minor: paymentEntity.amount,
-        currency: "INR",
-        status: "captured",
-        method: paymentEntity.method,
-        error_code: null,
-        created_at: new Date().toISOString(),
-      };
-      setPayments((prev) => [newTxn, ...prev]);
-    } catch (err: any) {
-      setSubmitError(`Payment submission failed: ${err?.message || "Unknown error"}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const filtered = payments.filter((p) => {
     const q = search.toLowerCase();
     const matchSearch = !q || p.id.toLowerCase().includes(q) || p.order_id.toLowerCase().includes(q);
@@ -234,11 +117,6 @@ export default function PaymentsPage() {
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-mono border bg-ivory-100 border-ivory-300 text-charcoal-700">
-              <span className={`w-2 h-2 rounded-full ${apiSource === "backend" ? "bg-emerald-500" : "bg-blue-500"}`} />
-              <span>{apiSource === "backend" ? "Backend DRF API" : "httpbin Demo API"}</span>
-            </span>
-
             {stats && (
               <span
                 className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${
@@ -311,96 +189,6 @@ export default function PaymentsPage() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* STEP 5: Payment Simulation & Verification Form with Active Submit Button */}
-        <div className="bg-white rounded-xl border border-ivory-300 shadow-sm p-5 space-y-4">
-          <div className="flex items-center justify-between pb-2 border-b border-ivory-200">
-            <div>
-              <h3 className="text-sm font-bold text-charcoal-900 flex items-center space-x-2">
-                <CreditCard className="w-4 h-4 text-emerald-600" />
-                <span>Simulate &amp; Verify Payment Transaction (httpbin POST)</span>
-              </h3>
-              <p className="text-xs text-charcoal-500 mt-0.5">
-                Simulate an authorized payment capture and verify end-to-end gateway webhook payload processing.
-              </p>
-            </div>
-            <span className="text-[11px] font-mono bg-ivory-100 px-2 py-0.5 rounded border border-ivory-200 text-charcoal-600">
-              Target: {USE_DEMO_APIS ? demoUrlLabel("razorpay") : "demo mode off"}
-            </span>
-          </div>
-
-          {submitNotice && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>{submitNotice}</span>
-            </div>
-          )}
-
-          {submitError && (
-            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-              <span>{submitError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmitPayment} className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Order Reference ID</label>
-              <input
-                type="text"
-                required
-                value={testOrderId}
-                onChange={(e) => setTestOrderId(e.target.value)}
-                placeholder="order_125_..."
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Amount (INR ₹)</label>
-              <input
-                type="number"
-                required
-                min="1"
-                value={testAmount}
-                onChange={(e) => setTestAmount(e.target.value)}
-                placeholder="2499"
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Payment Method</label>
-              <select
-                value={testMethod}
-                onChange={(e) => setTestMethod(e.target.value)}
-                className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 text-xs font-medium focus:ring-1 focus:ring-emerald-500"
-              >
-                <option value="upi">UPI (Instant VPA)</option>
-                <option value="card">Credit / Debit Card</option>
-                <option value="netbanking">Net Banking (HDFC/ICICI)</option>
-                <option value="wallet">Mobile Wallet</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={submitting || !testOrderId.trim() || Number(testAmount) <= 0}
-                className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center space-x-1.5 shadow-sm"
-              >
-                {submitting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>Submit Payment Test</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
         </div>
 
         <div className="bg-white rounded-xl border border-ivory-300 shadow-sm overflow-hidden">

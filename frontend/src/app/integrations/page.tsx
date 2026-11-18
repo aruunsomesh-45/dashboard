@@ -50,9 +50,9 @@ const DEFAULT_APPS: AppConnector[] = [
     name: "Shopify",
     provider: "shopify",
     category: "Store & Catalog",
-    status: "connected",
-    account_identifier: "125-east-apparel.myshopify.com",
-    last_synced_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    status: "disconnected",
+    account_identifier: "",
+    last_synced_at: null,
     auth_type: "OAuth 2.0",
     description: "Sync orders, products, inventory, customers, discounts, and fulfillment updates via verified HMAC webhooks.",
     fields: [
@@ -66,9 +66,9 @@ const DEFAULT_APPS: AppConnector[] = [
     name: "Razorpay",
     provider: "razorpay",
     category: "Payments",
-    status: "connected",
-    account_identifier: "acc_RazorpayMerchant_125",
-    last_synced_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    status: "disconnected",
+    account_identifier: "",
+    last_synced_at: null,
     auth_type: "API Key & Webhook Secret",
     description: "Reconcile payments, authorization rates, refunds, and bank chargebacks/disputes with zero amount/name collisions.",
     fields: [
@@ -82,9 +82,9 @@ const DEFAULT_APPS: AppConnector[] = [
     name: "Delhivery / Carrier Logistics",
     provider: "shiprocket",
     category: "Logistics",
-    status: "connected",
-    account_identifier: "delhivery_client_948",
-    last_synced_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    status: "disconnected",
+    account_identifier: "",
+    last_synced_at: null,
     auth_type: "API Key & Webhook Secret",
     description: "Real-time AWB tracking, NDR non-delivery action triggers, and RTO return tracking using canonical state machines.",
     fields: [
@@ -97,9 +97,9 @@ const DEFAULT_APPS: AppConnector[] = [
     name: "Meta Ads (Facebook & Instagram)",
     provider: "meta_ads",
     category: "Marketing",
-    status: "connected",
-    account_identifier: "act_109284719284",
-    last_synced_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    status: "disconnected",
+    account_identifier: "",
+    last_synced_at: null,
     auth_type: "OAuth 2.0",
     description: "Attributed ROAS, CAC, daily ad spend, and impressions with automatic 28-day attribution restatements.",
     fields: [
@@ -112,9 +112,9 @@ const DEFAULT_APPS: AppConnector[] = [
     name: "Instagram Organic",
     provider: "instagram",
     category: "Social",
-    status: "connected",
-    account_identifier: "@125east_official",
-    last_synced_at: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+    status: "disconnected",
+    account_identifier: "",
+    last_synced_at: null,
     auth_type: "OAuth 2.0",
     description: "Daily midnight profile follower snapshots, Reels reach, and organic engagement rate tracking.",
     fields: [
@@ -196,85 +196,37 @@ export default function ConnectAppsPage() {
     setCardSaveError((prev) => { const n = { ...prev }; delete n[appId]; return n; });
   };
 
+  const saveToBackend = async (app: AppConnector, values: Record<string, string>): Promise<string> => {
+    if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
+    await apiFetch(`/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/integrations/`, {
+      method: "POST",
+      body: JSON.stringify({
+        provider: app.provider,
+        account_identifier: values[app.fields[0].key] || "",
+        credentials: values,
+      }),
+    });
+    let notice = `Credentials encrypted & stored for ${app.name}.`;
+    const syncPath = app.provider === "shopify" ? "shopify" : app.provider === "meta_ads" ? "marketing" : null;
+    if (syncPath) {
+      const syncRes = await apiFetch<{ message?: string }>(
+        `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/${syncPath}/sync-now/`,
+        { method: "POST" }
+      );
+      if (syncRes.message) notice = syncRes.message;
+    }
+    await loadIntegrations();
+    return notice;
+  };
+
   const handleCardSaveCredentials = async (app: AppConnector) => {
+    if (savingCardId) return;
     const values = cardFormValues[app.id] || {};
 
     setSavingCardId(app.id);
     setCardSaveError((prev) => { const n = { ...prev }; delete n[app.id]; return n; });
     try {
-      const payload = {
-        provider: app.provider,
-        account_identifier: values[app.fields[0].key] || "",
-        credentials: values,
-        timestamp: new Date().toISOString(),
-      };
-
-      let successNotice = `Credentials encrypted & stored for ${app.name}.`;
-
-      if (currentWorkspace && currentBrand) {
-        try {
-          await apiFetch(`/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/integrations/`, {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-
-          if (app.provider === "shopify") {
-            const syncRes = await apiFetch<{ message?: string }>(
-              `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/shopify/sync-now/`,
-              { method: "POST" }
-            );
-            if (syncRes.message) successNotice = syncRes.message;
-          } else if (app.provider === "meta_ads") {
-            const syncRes = await apiFetch<{ message?: string }>(
-              `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/`,
-              { method: "POST" }
-            );
-            if (syncRes.message) successNotice = syncRes.message;
-          }
-
-          await loadIntegrations();
-        } catch {
-          // Fallback to httpbin demo verification
-          const httpbinUrl = process.env.NEXT_PUBLIC_HTTPBIN_POST_API || "https://httpbin.org/post";
-          await apiFetch(httpbinUrl, {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          successNotice = `Credentials encrypted & verified via httpbin demo mode for ${app.name}.`;
-          setApps((prev) =>
-            prev.map((a) =>
-              a.id === app.id
-                ? {
-                    ...a,
-                    status: "connected",
-                    account_identifier: values[app.fields[0].key] || "connected",
-                    last_synced_at: new Date().toISOString(),
-                  }
-                : a
-            )
-          );
-        }
-      } else {
-        const httpbinUrl = process.env.NEXT_PUBLIC_HTTPBIN_POST_API || "https://httpbin.org/post";
-        await apiFetch(httpbinUrl, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        successNotice = `Credentials encrypted & verified via httpbin demo mode for ${app.name}.`;
-        setApps((prev) =>
-          prev.map((a) =>
-            a.id === app.id
-              ? {
-                  ...a,
-                  status: "connected",
-                  account_identifier: values[app.fields[0].key] || "connected",
-                  last_synced_at: new Date().toISOString(),
-                }
-              : a
-          )
-        );
-      }
-
+      const successNotice = await saveToBackend(app, values);
       setCardSaveNotice((prev) => ({ ...prev, [app.id]: successNotice }));
       setTimeout(() => {
         setExpandedCards((prev) => { const n = new Set(prev); n.delete(app.id); return n; });
@@ -295,10 +247,11 @@ export default function ConnectAppsPage() {
   };
 
   const handleTriggerSync = async (provider: string) => {
-    if (!currentWorkspace || !currentBrand) return;
+    if (syncingId) return;
     setSyncingId(provider);
     setSyncNotice(null);
     try {
+      if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
       if (provider === "shopify") {
         const res = await apiFetch<{ message?: string; last_synced_at?: string }>(
           `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/shopify/sync-now/`,
@@ -314,15 +267,7 @@ export default function ConnectAppsPage() {
         setSyncNotice(res.message || "Meta Ads sync completed.");
         await loadIntegrations();
       } else {
-        const httpbinUrl = process.env.NEXT_PUBLIC_HTTPBIN_POST_API || "https://httpbin.org/post";
-        await apiFetch(httpbinUrl, {
-          method: "POST",
-          body: JSON.stringify({ provider, action: "sync_now", timestamp: new Date().toISOString() }),
-        });
-        setSyncNotice(`${provider.toUpperCase()} sync verified! Status: 200 OK via httpbin.`);
-        setApps((prev) =>
-          prev.map((a) => (a.provider === provider ? { ...a, last_synced_at: new Date().toISOString() } : a))
-        );
+        setSyncNotice(`${provider.toUpperCase()} syncs automatically via webhooks; there is no manual sync endpoint.`);
       }
     } catch (err: any) {
       setSyncNotice(`Sync failed: ${err.message || "Failed to trigger sync"}`);
@@ -334,40 +279,12 @@ export default function ConnectAppsPage() {
 
   const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedApp || !currentWorkspace || !currentBrand) return;
+    if (!selectedApp || saving) return;
 
     setSaving(true);
     setSaveError(null);
     try {
-      await apiFetch(`/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/integrations/`, {
-        method: "POST",
-        body: JSON.stringify({
-          provider: selectedApp.provider,
-          account_identifier: formValues[selectedApp.fields[0].key] || "",
-          credentials: formValues,
-        }),
-      });
-
-      let notice = `Credentials encrypted & stored for ${selectedApp.name}.`;
-      if (selectedApp.provider === "shopify") {
-        const syncRes = await apiFetch<{ message?: string }>(
-          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/shopify/sync-now/`,
-          { method: "POST" }
-        );
-        if (syncRes.message) {
-          notice = syncRes.message;
-        }
-      } else if (selectedApp.provider === "meta_ads") {
-        const syncRes = await apiFetch<{ message?: string }>(
-          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/`,
-          { method: "POST" }
-        );
-        if (syncRes.message) {
-          notice = syncRes.message;
-        }
-      }
-
-      await loadIntegrations();
+      const notice = await saveToBackend(selectedApp, formValues);
       setSaveNotice(notice);
       setTimeout(() => {
         setSelectedApp(null);
@@ -375,7 +292,7 @@ export default function ConnectAppsPage() {
       }, 1500);
     } catch (err: any) {
       setSaveError(err.message || "Failed to save or sync credentials.");
-      await loadIntegrations();
+      await loadIntegrations().catch(() => undefined);
     } finally {
       setSaving(false);
     }

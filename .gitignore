@@ -48,3 +48,5 @@ backups/
 
 # Local editor/MCP config can embed API keys
 .vscode/mcp.json
+.next-demo-test/
+e2e/results-demo/
