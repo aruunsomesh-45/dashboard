@@ -1,4 +1,3 @@
-import { supabase } from "./supabaseClient";
 import { firebaseAuth } from "./firebaseClient";
 
 // In-memory token cache for ultra-fast API calls
@@ -37,7 +36,8 @@ export async function ensureCsrf(): Promise<void> {
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const isExternal = endpoint.startsWith("http://") || endpoint.startsWith("https://");
+  const url = isExternal ? endpoint : (endpoint.startsWith("/") ? endpoint : `/${endpoint}`);
   const method = (options.method ?? "GET").toUpperCase();
 
   const headers: Record<string, string> = {
@@ -46,35 +46,38 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Attach JWT Bearer token (Cached memory token first, then Firebase)
-  if (!headers["Authorization"]) {
-    if (cachedBearerToken) {
-      headers["Authorization"] = `Bearer ${cachedBearerToken}`;
-    } else if (typeof window !== "undefined" && !endpoint.includes("/api/auth/csrf")) {
-      try {
-        if (firebaseAuth.currentUser) {
-          const idToken = await firebaseAuth.currentUser.getIdToken();
-          if (idToken) {
-            cachedBearerToken = idToken;
-            headers["Authorization"] = `Bearer ${idToken}`;
+  // Only attach internal authentication and CSRF headers to internal endpoints
+  if (!isExternal) {
+    // Attach JWT Bearer token (Cached memory token first, then Firebase)
+    if (!headers["Authorization"]) {
+      if (cachedBearerToken) {
+        headers["Authorization"] = `Bearer ${cachedBearerToken}`;
+      } else if (typeof window !== "undefined" && !endpoint.includes("/api/auth/csrf")) {
+        try {
+          if (firebaseAuth.currentUser) {
+            const idToken = await firebaseAuth.currentUser.getIdToken();
+            if (idToken) {
+              cachedBearerToken = idToken;
+              headers["Authorization"] = `Bearer ${idToken}`;
+            }
           }
+        } catch {
+          // Fall back to Django session cookie
         }
-      } catch {
-        // Fall back to Django session cookie
       }
     }
-  }
 
-  // Attach CSRF token for all state-changing verbs
-  if (MUTATING.has(method)) {
-    const token = getCsrfToken();
-    if (token) {
-      headers["X-CSRFToken"] = token;
-    } else {
-      // Cookie missing — fetch it now then retry (handles cold-start edge case)
-      await ensureCsrf();
-      const retried = getCsrfToken();
-      if (retried) headers["X-CSRFToken"] = retried;
+    // Attach CSRF token for all state-changing verbs
+    if (MUTATING.has(method)) {
+      const token = getCsrfToken();
+      if (token) {
+        headers["X-CSRFToken"] = token;
+      } else {
+        // Cookie missing — fetch it now then retry (handles cold-start edge case)
+        await ensureCsrf();
+        const retried = getCsrfToken();
+        if (retried) headers["X-CSRFToken"] = retried;
+      }
     }
   }
 
@@ -84,29 +87,63 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       ...options,
       method,
       headers,
-      credentials: "include", // Send HttpOnly session cookie + csrftoken cookie
+      credentials: isExternal ? "omit" : "include", // Do not send internal cookies to external APIs
     });
-  } catch {
+  } catch (err: any) {
+    if (isExternal) {
+      throw new Error(`Failed to connect to external API (${url}): ${err?.message || "Network Error"}`);
+    }
     throw new Error(
-      "Cannot connect to the backend server. Please make sure the Django server is running on port 8000."
+      "Cannot connect to the backend server. Please make sure the Django server is running on port 8001."
     );
+  }
+
+  // Log status code and sample of response for QA verification
+  const contentType = response.headers.get("content-type") || "";
+  let responseData: any = null;
+
+  if (contentType.includes("application/json")) {
+    try {
+      responseData = await response.json();
+    } catch {
+      responseData = null;
+    }
+  } else {
+    try {
+      responseData = await response.text();
+    } catch {
+      responseData = null;
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    const sample = typeof responseData === "object" && responseData !== null
+      ? (Array.isArray(responseData) ? responseData.slice(0, 2) : responseData)
+      : responseData;
+    console.log(`[API ${method}] ${url} -> Status: ${response.status}`, {
+      status: response.status,
+      ok: response.ok,
+      sample,
+    });
   }
 
   if (!response.ok) {
     let errorDetail = "";
-    try {
-      const errorJson = await response.json();
+    if (responseData && typeof responseData === "object") {
       errorDetail =
-        errorJson.error ||
-        errorJson.detail ||
-        (Array.isArray(errorJson) ? errorJson[0] : null) ||
-        Object.values(errorJson)[0] ||
+        responseData.error ||
+        responseData.detail ||
+        responseData.message ||
+        (Array.isArray(responseData) ? responseData[0] : null) ||
+        Object.values(responseData)[0] ||
         response.statusText;
       if (Array.isArray(errorDetail)) {
         errorDetail = errorDetail[0];
       }
-    } catch {
-      if (response.status === 500) {
+    } else if (typeof responseData === "string" && responseData.length < 200) {
+      errorDetail = responseData;
+    } else {
+      if (response.status === 500 && !isExternal) {
         errorDetail =
           "Backend connection failed (500). Please ensure Django is running on http://127.0.0.1:8001";
       } else {
@@ -116,10 +153,9 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     throw new Error(String(errorDetail || `Request failed with status ${response.status}`));
   }
 
-  // Handle empty 204 / no-JSON responses
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return response.json() as Promise<T>;
+  if (response.status === 204 || responseData === null) {
+    return {} as T;
   }
-  return {} as T;
+
+  return responseData as T;
 }
