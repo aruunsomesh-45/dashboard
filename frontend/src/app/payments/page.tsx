@@ -3,12 +3,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchWithStatus } from "@/lib/api";
+import { USE_DEMO_APIS, demoUrl, demoUrlLabel, DEMO_ONLY_MESSAGE } from "@/lib/demoApis";
 import { RazorpayLogo } from "@/components/icons/AppLogos";
 import { CheckCircle2, XCircle, Clock, Search, AlertCircle, CreditCard, RefreshCw } from "lucide-react";
 
-// Everything on this page comes from the backend (PaymentAttempt rows written by signed Razorpay webhooks).
-// There is no client-side sample data: an empty brand shows empty states, a failing API shows an error.
+// USE_DEMO_APIS=false: everything comes from the backend (PaymentAttempt rows written by signed Razorpay webhooks).
+// USE_DEMO_APIS=true: labelled test rows are echoed through httpbin. A failing API shows an error either way.
 
 interface PaymentStats {
   connected: boolean;
@@ -33,6 +34,31 @@ interface Transaction {
 
 function paise(minor: number): string {
   return "₹" + (minor / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+// Demo mode only: labelled test rows that are round-tripped through httpbin (see load()).
+const DEMO_TEST_TRANSACTIONS: Transaction[] = [
+  { id: "pay_demo_101", order_id: "order_125_001", amount_minor: 249900, currency: "INR", status: "captured", method: "upi", error_code: null, created_at: "2026-11-18T08:00:00Z" },
+  { id: "pay_demo_102", order_id: "order_125_002", amount_minor: 499900, currency: "INR", status: "captured", method: "card", error_code: null, created_at: "2026-11-18T05:00:00Z" },
+  { id: "pay_demo_103", order_id: "order_125_003", amount_minor: 129900, currency: "INR", status: "failed", method: "upi", error_code: "BAD_REQUEST_ERROR", created_at: "2026-11-18T02:00:00Z" },
+  { id: "pay_demo_104", order_id: "order_125_004", amount_minor: 349900, currency: "INR", status: "refunded", method: "netbanking", error_code: null, created_at: "2026-11-17T22:00:00Z" },
+];
+
+/** Compute the KPI cards from a list of transactions (demo mode). */
+function statsFromTransactions(rows: Transaction[]): PaymentStats {
+  const captured = rows.filter((r) => r.status === "captured");
+  const splits: Record<string, number> = {};
+  for (const r of captured) splits[r.method] = (splits[r.method] || 0) + 1;
+  for (const k of Object.keys(splits)) splits[k] = Math.round((splits[k] * 1000) / captured.length) / 10;
+  return {
+    connected: true,
+    payment_count: captured.length,
+    attempt_count: rows.length,
+    authorized_rate: rows.length ? Math.round((captured.length * 1000) / rows.length) / 10 : null,
+    total_captured_minor: captured.reduce((sum, r) => sum + r.amount_minor, 0),
+    total_fees_minor: null,
+    method_splits: splits,
+  };
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -82,7 +108,8 @@ export default function PaymentsPage() {
     setLoading(true);
     setError(null);
     try {
-      if (currentWorkspace && currentBrand) {
+      if (!USE_DEMO_APIS) {
+        if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
         const base = `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/payments`;
         const [s, t] = await Promise.all([
           apiFetch<PaymentStats>(`${base}/stats`),
@@ -93,64 +120,22 @@ export default function PaymentsPage() {
         setApiSource("backend");
         return;
       }
-      throw new Error("No active workspace/brand");
-    } catch (err: any) {
-      console.warn("Backend unavailable, loading demo Razorpay transactions:", err?.message);
-      setApiSource("demo_httpbin");
-      // Generate realistic demo payment attempts
-      const demoTxns: Transaction[] = [
-        {
-          id: "pay_demo_NqzK101",
-          order_id: "order_125_001",
-          amount_minor: 249900,
-          currency: "INR",
-          status: "captured",
-          method: "upi",
-          error_code: null,
-          created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-        },
-        {
-          id: "pay_demo_NqzK102",
-          order_id: "order_125_002",
-          amount_minor: 499900,
-          currency: "INR",
-          status: "captured",
-          method: "card",
-          error_code: null,
-          created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-        },
-        {
-          id: "pay_demo_NqzK103",
-          order_id: "order_125_003",
-          amount_minor: 129900,
-          currency: "INR",
-          status: "failed",
-          method: "upi",
-          error_code: "BAD_REQUEST_ERROR",
-          created_at: new Date(Date.now() - 3600000 * 8).toISOString(),
-        },
-        {
-          id: "pay_demo_NqzK104",
-          order_id: "order_125_004",
-          amount_minor: 349900,
-          currency: "INR",
-          status: "refunded",
-          method: "netbanking",
-          error_code: null,
-          created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-        },
-      ];
 
-      setStats({
-        connected: true,
-        payment_count: 3,
-        attempt_count: 4,
-        authorized_rate: 75.0,
-        total_captured_minor: 749800,
-        total_fees_minor: null,
-        method_splits: { upi: 50.0, card: 25.0, netbanking: 25.0 },
+      // Demo mode: httpbin only echoes what it is sent, so we POST the labelled test
+      // transactions and render exactly what httpbin sends back (NEXT_PUBLIC_DEMO_RAZORPAY_API).
+      const echo = await apiFetch<{ json?: { transactions?: Transaction[] } }>(demoUrl("razorpay"), {
+        method: "POST",
+        body: JSON.stringify({ transactions: DEMO_TEST_TRANSACTIONS }),
       });
-      setPayments(demoTxns);
+      const rows = echo?.json?.transactions;
+      if (!Array.isArray(rows)) throw new Error("Demo API response did not contain the echoed transactions.");
+      setApiSource("demo_httpbin");
+      setPayments(rows);
+      setStats(statsFromTransactions(rows));
+    } catch (err: any) {
+      setStats(null);
+      setPayments([]);
+      setError(`Could not load payments from the ${USE_DEMO_APIS ? "demo API" : "backend"}: ${err?.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -164,6 +149,10 @@ export default function PaymentsPage() {
     e.preventDefault();
     if (!testOrderId.trim() || Number(testAmount) <= 0) {
       setSubmitError("Please provide a valid Order ID and Amount (> 0).");
+      return;
+    }
+    if (!USE_DEMO_APIS) {
+      setSubmitError(DEMO_ONLY_MESSAGE);
       return;
     }
 
@@ -189,17 +178,17 @@ export default function PaymentsPage() {
     };
 
     try {
-      // Step 3 & 5: Connect to httpbin POST API (echoes submitted payment)
-      const targetUrl = process.env.NEXT_PUBLIC_DEMO_RAZORPAY_API || "https://httpbin.org/post";
-      const res = await apiFetch<any>(targetUrl, {
+      // Demo mode: httpbin echoes the submitted webhook-style payload back
+      const { status, data: res } = await apiFetchWithStatus<any>(demoUrl("razorpay"), {
         method: "POST",
         body: JSON.stringify(payload),
       });
 
-      const paymentEntity = res?.json?.payload?.payment?.entity || payload.payload.payment.entity;
+      const paymentEntity = res?.json?.payload?.payment?.entity;
+      if (!paymentEntity) throw new Error(`Demo API returned HTTP ${status} but did not echo the payment.`);
 
       setSubmitNotice(
-        `Payment verified & captured! Status: 200 OK via httpbin. Transaction ID: ${paymentEntity.id} for ₹${testAmount} (${testMethod.toUpperCase()}).`
+        `Test payment sent: HTTP ${status} from httpbin. Echoed transaction ${paymentEntity.id} for ₹${paymentEntity.amount / 100} (${String(paymentEntity.method).toUpperCase()}).`
       );
 
       // Add to local transactions table
@@ -337,7 +326,7 @@ export default function PaymentsPage() {
               </p>
             </div>
             <span className="text-[11px] font-mono bg-ivory-100 px-2 py-0.5 rounded border border-ivory-200 text-charcoal-600">
-              Target: {process.env.NEXT_PUBLIC_DEMO_RAZORPAY_API || "https://httpbin.org/post"}
+              Target: {USE_DEMO_APIS ? demoUrlLabel("razorpay") : "demo mode off"}
             </span>
           </div>
 
@@ -455,7 +444,14 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ivory-200">
-              {!loading && filtered.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-charcoal-500">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600" />
+                    <span>Loading payment attempts &amp; gateway stats...</span>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-charcoal-500">
                     No payments {payments.length ? "match these filters" : "recorded yet"}.

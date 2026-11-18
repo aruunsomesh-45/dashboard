@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchWithStatus } from "@/lib/api";
+import { USE_DEMO_APIS, demoUrl, demoUrlLabel, DEMO_ONLY_MESSAGE } from "@/lib/demoApis";
 import { DelhiveryLogo } from "@/components/icons/AppLogos";
 import { AlertTriangle, CheckCircle2, Clock, RotateCcw, Search, Truck, RefreshCw } from "lucide-react";
 
@@ -51,6 +52,7 @@ export default function LogisticsPage() {
   const [loading, setLoading] = useState(true);
   const [apiSource, setApiSource] = useState<"backend" | "demo_countries">("backend");
   const [countries, setCountries] = useState<Array<{ name: string; code: string }>>([]);
+  const [countriesError, setCountriesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -69,25 +71,11 @@ export default function LogisticsPage() {
     setLoading(true);
     setNotice(null);
 
-    // Step 3: Pull shipping destination routes from REST Countries demo API
-    try {
-      const demoUrl = process.env.NEXT_PUBLIC_DEMO_LOGISTICS_API || "https://restcountries.com/v3.1/all";
-      const cRes = await apiFetch<Array<{ name: { common: string }; cca2: string }>>(
-        `${demoUrl}?fields=name,cca2`
-      );
-      if (Array.isArray(cRes)) {
-        const sorted = cRes
-          .map((c) => ({ name: c.name?.common || "Unknown", code: c.cca2 }))
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .slice(0, 30);
-        setCountries(sorted);
-      }
-    } catch (cErr) {
-      console.warn("Could not load countries list:", cErr);
-    }
+    setCountriesError(null);
 
-    try {
-      if (base) {
+    if (!USE_DEMO_APIS) {
+      try {
+        if (!base) throw new Error("No workspace or brand is selected.");
         const [s, list] = await Promise.all([
           apiFetch<Summary>(`${base}/summary`),
           apiFetch<Shipment[]>(`${base}/shipments?limit=100`),
@@ -95,13 +83,35 @@ export default function LogisticsPage() {
         setSummary(s);
         setShipments(list);
         setApiSource("backend");
-        return;
+      } catch (err: any) {
+        setSummary(null);
+        setShipments([]);
+        setNotice({ kind: "error", text: `Could not load shipments from the backend: ${err?.message || "Unknown error"}` });
+      } finally {
+        setLoading(false);
       }
-      throw new Error("No active workspace/brand");
-    } catch (err: any) {
-      console.warn("Backend unavailable, loading demo logistics data:", err?.message);
-      setApiSource("demo_countries");
+      return;
+    }
 
+    // Demo mode: delivery destinations from JSONPlaceholder /users addresses (NEXT_PUBLIC_DEMO_LOGISTICS_API).
+    // (REST Countries v3.1 was retired and v5 needs an API key, so it can no longer be used keyless.)
+    setApiSource("demo_countries");
+    try {
+      const cRes = await apiFetch<Array<{ id: number; address?: { city?: string; zipcode?: string } }>>(demoUrl("logistics"));
+      if (!Array.isArray(cRes)) throw new Error("Demo API did not return a list of destinations.");
+      const sorted = cRes
+        .filter((u) => u.address?.city)
+        .map((u) => ({ name: String(u.address!.city), code: String(u.address!.zipcode || u.id) }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 30);
+      setCountries(sorted);
+    } catch (cErr: any) {
+      setCountries([]);
+      setCountriesError(`Could not load delivery destinations from the demo API: ${cErr?.message || "Unknown error"}`);
+    }
+
+    try {
+      // Sample shipments shown in demo mode only (the demo API has no shipment data).
       const demoList: Shipment[] = [
         {
           id: "shp_1",
@@ -164,19 +174,21 @@ export default function LogisticsPage() {
     setActionLoading(awb);
     setNotice(null);
     try {
-      if (base) {
-        await apiFetch(`${base}/ndr/${awb}/action`, {
+      let status: number;
+      if (!USE_DEMO_APIS) {
+        if (!base) throw new Error("No workspace or brand is selected.");
+        ({ status } = await apiFetchWithStatus(`${base}/ndr/${awb}/action`, {
           method: "POST",
           body: JSON.stringify({ action: "reattempt" }),
-        });
+        }));
       } else {
-        // Fallback to httpbin demo POST
-        await apiFetch("https://httpbin.org/post", {
+        // Demo mode: httpbin echo (NEXT_PUBLIC_HTTPBIN_POST_API)
+        ({ status } = await apiFetchWithStatus(demoUrl("echo"), {
           method: "POST",
           body: JSON.stringify({ awb, action: "reattempt", source: "ndr_button" }),
-        });
+        }));
       }
-      setNotice({ kind: "ok", text: `Re-attempt requested successfully for AWB ${awb} (Status: 200 OK)` });
+      setNotice({ kind: "ok", text: `Re-attempt requested for AWB ${awb} (HTTP ${status}).` });
       // Update local status to in_transit
       setShipments((prev) =>
         prev.map((s) => (s.awb === awb ? { ...s, status: "in_transit" } : s))
@@ -194,6 +206,10 @@ export default function LogisticsPage() {
       setNotice({ kind: "error", text: "Please provide a valid AWB code." });
       return;
     }
+    if (!USE_DEMO_APIS) {
+      setNotice({ kind: "error", text: DEMO_ONLY_MESSAGE });
+      return;
+    }
 
     setSubmitting(true);
     setNotice(null);
@@ -207,17 +223,17 @@ export default function LogisticsPage() {
     };
 
     try {
-      // Step 3 & 5: Connect to httpbin POST API
-      const targetUrl = process.env.NEXT_PUBLIC_HTTPBIN_POST_API || "https://httpbin.org/post";
-      const res = await apiFetch<any>(targetUrl, {
+      // Demo mode: httpbin echo (NEXT_PUBLIC_HTTPBIN_POST_API)
+      const { status, data: res } = await apiFetchWithStatus<any>(demoUrl("echo"), {
         method: "POST",
         body: JSON.stringify(payload),
       });
 
-      const data = res?.json || payload;
+      const data = res?.json;
+      if (!data?.awb) throw new Error(`Demo API returned HTTP ${status} but did not echo the instruction.`);
       setNotice({
         kind: "ok",
-        text: `Logistics instruction submitted! Courier: ${data.carrier}, AWB: ${data.awb}, Destination: ${data.destination_country} (Status: 200 OK via httpbin)`,
+        text: `Logistics instruction sent: HTTP ${status} from httpbin. Courier: ${data.carrier}, AWB: ${data.awb}, Destination: ${data.destination_country}.`,
       });
 
       // Insert or update shipment list
@@ -273,7 +289,7 @@ export default function LogisticsPage() {
           <div className="flex items-center space-x-2">
             <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-[11px] font-mono border bg-ivory-100 border-ivory-300 text-charcoal-700">
               <span className={`w-2 h-2 rounded-full ${apiSource === "backend" ? "bg-emerald-500" : "bg-blue-500"}`} />
-              <span>{apiSource === "backend" ? "Backend DRF API" : "REST Countries API"}</span>
+              <span>{apiSource === "backend" ? "Backend DRF API" : "Demo: JSONPlaceholder destinations + sample shipments"}</span>
             </span>
             <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -348,9 +364,20 @@ export default function LogisticsPage() {
               </p>
             </div>
             <span className="text-[11px] font-mono bg-ivory-100 px-2 py-0.5 rounded border border-ivory-200 text-charcoal-600">
-              Demo Destination API: REST Countries ({countries.length} zones loaded)
+              {USE_DEMO_APIS ? `Demo Destination API: JSONPlaceholder (${countries.length} destinations loaded)` : "Demo mode off"}
             </span>
           </div>
+
+          {countriesError && (
+            <div role="alert" className="p-3 rounded-lg text-xs border bg-red-50 border-red-200 text-red-700">
+              {countriesError}
+            </div>
+          )}
+          {USE_DEMO_APIS && !loading && !countriesError && countries.length === 0 && (
+            <div className="p-3 rounded-lg text-xs border bg-ivory-50 border-ivory-300 text-charcoal-600">
+              The demo API returned no delivery destinations.
+            </div>
+          )}
 
           <form onSubmit={handleDispatchOrReattempt} className="grid grid-cols-1 sm:grid-cols-5 gap-3 text-xs">
             <div>
@@ -378,7 +405,7 @@ export default function LogisticsPage() {
               </select>
             </div>
             <div>
-              <label className="block font-semibold text-charcoal-700 mb-1">Destination Region (REST Countries)</label>
+              <label className="block font-semibold text-charcoal-700 mb-1">Destination (demo addresses)</label>
               <select
                 value={selectedCountry}
                 onChange={(e) => setSelectedCountry(e.target.value)}
@@ -461,7 +488,14 @@ export default function LogisticsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-ivory-200">
-              {!loading && filtered.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-charcoal-500">
+                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-slate-600" />
+                    <span>Loading courier shipments &amp; carrier routes...</span>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-charcoal-500">
                     No shipments {shipments.length ? "match these filters" : "recorded yet"}.
