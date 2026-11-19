@@ -34,6 +34,10 @@ class HasTenantAccess(BasePermission):
             if auth_inst and auth_inst.__class__.__name__ == "ForcedAuthentication":
                 return True
 
+            # If user has not enabled MFA on their account, or in local DEBUG mode, bypass MFA gate
+            if not getattr(request.user, "mfa_enabled", False) or getattr(settings, "DEBUG", False):
+                return True
+
             is_mfa_verified = False
 
             # 1. Session verification check
