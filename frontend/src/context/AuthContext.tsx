@@ -36,6 +36,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const getAppOrigin = (): string => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin;
+  }
+  return "https://125east-dashboard.vercel.app";
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
@@ -303,7 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Fallback to Supabase OAuth if Firebase not configured
-      const origin = window.location.origin;
+      const origin = getAppOrigin();
       const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
       const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
       const { error } = await supabase.auth.signInWithOAuth({
@@ -329,12 +339,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Email/Password Sign-In (Unified Django Backend + Firebase sync)
+  // Email/Password Sign-In (Unified Django Backend + Supabase + Firebase sync)
   const signInWithEmail = async (email: string, password: string) => {
     try {
       const cleanEmail = email.trim().toLowerCase();
 
-      // 1. Authenticate with Django Backend directly
+      // 1. Authenticate with Django Backend directly (if available)
       try {
         await ensureCsrf();
         const res = await apiFetch<any>("/api/auth/login/", {
@@ -362,14 +372,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: null };
         }
       } catch (backendErr: any) {
-        console.warn("Backend password login error, trying Firebase fallback:", backendErr);
-        // If the error message is specific (e.g. invalid credentials), capture it
-        if (backendErr?.message && !backendErr.message.includes("fetch")) {
-          return { error: new Error(backendErr.message) };
-        }
+        console.warn("Backend password login error, trying Supabase fallback:", backendErr);
       }
 
-      // 2. Firebase Email/Password Fallback
+      // 2. Supabase Email/Password Direct Sign-In (Works on Vercel deployment)
+      try {
+        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (!supaErr && supaData?.user) {
+          await loadUserData(supaData.user.id, supaData.user.email || "");
+          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+          router.push(next);
+          return { error: null };
+        }
+        if (supaErr && !supaErr.message.toLowerCase().includes("invalid login credentials")) {
+          console.warn("Supabase auth notice:", supaErr.message);
+        }
+      } catch (supaEx: any) {
+        console.warn("Supabase login exception:", supaEx);
+      }
+
+      // 3. Firebase Email/Password Fallback
       try {
         const cred = await signInWithEmailAndPassword(firebaseAuth, cleanEmail, password);
         if (cred.user) {
@@ -382,7 +408,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: new Error(friendlyAuthError(fbErr)) };
       }
 
-      return { error: null };
+      return { error: new Error("Invalid email or password. Please verify your credentials or use Email OTP.") };
     } catch (err: any) {
       return { error: new Error(friendlyAuthError(err)) };
     }
@@ -407,7 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Email OTP Sign-In Request (Supabase Passwordless)
   const signInWithOtp = async (email: string) => {
     try {
-      const origin = window.location.origin;
+      const origin = getAppOrigin();
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
         options: {

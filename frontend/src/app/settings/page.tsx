@@ -25,7 +25,11 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(null), 2500);
   };
 
-  const webhookBase = typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8000";
+  // Webhook URLs need a publicly accessible HTTPS endpoint for Shopify & Razorpay webhook dispatch
+  const deployedHost = process.env.NEXT_PUBLIC_SITE_URL || "https://125east-dashboard.vercel.app";
+  const webhookBase = typeof window !== "undefined" && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")
+    ? window.location.origin
+    : deployedHost;
 
   return (
     <DashboardShell>

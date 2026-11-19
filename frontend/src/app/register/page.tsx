@@ -8,6 +8,16 @@ import { supabase } from "@/lib/supabaseClient";
 import { friendlyAuthError } from "@/lib/authErrors";
 import { Building2, Mail, User as UserIcon, ArrowRight, Loader2, KeyRound, CheckCircle2, RotateCw, AlertCircle } from "lucide-react";
 
+const getAppOrigin = (): string => {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.origin) {
+    return window.location.origin;
+  }
+  return "https://125east-dashboard.vercel.app";
+};
+
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,7 +43,7 @@ export default function RegisterPage() {
   const handleGoogleSignUp = async () => {
     setError(null);
     setIsLoading(true);
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const origin = getAppOrigin();
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -61,7 +71,7 @@ export default function RegisterPage() {
     setSuccessMsg(null);
     setIsLoading(true);
 
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const origin = getAppOrigin();
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
       options: {

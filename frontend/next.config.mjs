@@ -22,11 +22,16 @@ const nextConfig = {
   },
   ...(isExport ? {} : {
     async rewrites() {
-      const backendUrl = process.env.BACKEND_URL || "http://127.0.0.1:8001";
+      const backendUrl = process.env.BACKEND_URL;
+      // When deployed on Vercel without an external backend URL, avoid rewriting to private localhost
+      if (process.env.VERCEL === "1" && (!backendUrl || backendUrl.includes("127.0.0.1") || backendUrl.includes("localhost"))) {
+        return [];
+      }
+      const target = backendUrl || "http://127.0.0.1:8001";
       return [
         {
           source: "/api/:path*",
-          destination: `${backendUrl}/api/:path*`,
+          destination: `${target}/api/:path*`,
         },
       ];
     },

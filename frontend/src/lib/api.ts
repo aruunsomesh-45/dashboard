@@ -142,13 +142,20 @@ export async function apiFetchWithStatus<T>(
   if (!response.ok) {
     let errorDetail = "";
     if (responseData && typeof responseData === "object") {
-      errorDetail =
+      const rawError =
         responseData.error ||
         responseData.detail ||
         responseData.message ||
         (Array.isArray(responseData) ? responseData[0] : null) ||
         Object.values(responseData)[0] ||
         response.statusText;
+
+      if (typeof rawError === "object" && rawError !== null) {
+        errorDetail =
+          rawError.message || rawError.detail || rawError.error || JSON.stringify(rawError);
+      } else {
+        errorDetail = String(rawError || "");
+      }
       if (Array.isArray(errorDetail)) {
         errorDetail = errorDetail[0];
       }
