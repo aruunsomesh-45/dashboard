@@ -214,7 +214,7 @@ export default function ShopifyDashboard() {
                 </h2>
                 <p className="text-xs text-charcoal-500 mt-0.5">
                   Real-time ingest, canonical catalog & order intelligence for{" "}
-                  <strong>{currentBrand?.name || "125 East"}</strong>
+                  <strong>{currentBrand?.name || "Active Brand"}</strong>
                 </p>
               </div>
             </div>

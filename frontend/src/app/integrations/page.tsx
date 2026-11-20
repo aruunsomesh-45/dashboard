@@ -388,7 +388,7 @@ export default function ConnectAppsPage() {
                 </h2>
                 <p className="text-xs text-charcoal-500 mt-0.5">
                   Configure API keys, OAuth tokens, and webhooks for{" "}
-                  <strong>{currentBrand?.name || "125 East"}</strong>.
+                  <strong>{currentBrand?.name || "Active Brand"}</strong>.
                 </p>
               </div>
             </div>

@@ -114,7 +114,7 @@ export default function OverviewPage() {
             </h2>
             <p className="text-xs text-charcoal-500 mt-0.5">
               Live normalized metrics cockpit for{" "}
-              <strong>{currentBrand?.name || "125 East"}</strong> as per calculations specification.
+              <strong>{currentBrand?.name || "Active Brand"}</strong> as per calculations specification.
             </p>
           </div>
 

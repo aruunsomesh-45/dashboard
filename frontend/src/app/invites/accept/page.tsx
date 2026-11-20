@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
-const PENDING_KEY = "125east_pending_invite";
+const PENDING_KEY = "app_pending_invite";
 
 function AcceptInviteContent() {
   const router = useRouter();

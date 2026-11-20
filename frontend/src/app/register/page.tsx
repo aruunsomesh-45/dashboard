@@ -120,11 +120,11 @@ export default function RegisterPage() {
         {/* Brand Header */}
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-terracotta-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-            125
+            <Building2 className="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-charcoal-900">
-              Create 125 East Workspace
+              Create Workspace
             </h1>
             <p className="text-xs text-charcoal-500">
               Onboard your D2C brand to unified intelligence
@@ -213,7 +213,7 @@ export default function RegisterPage() {
                   required
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="125 East Apparel"
+                  placeholder="e.g. Acme Apparel"
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500"
                 />
                 <Building2 className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />

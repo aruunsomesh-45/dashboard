@@ -143,7 +143,7 @@ export default function PnLPage() {
                 </h2>
                 <p className="text-xs text-charcoal-500 mt-0.5">
                   Multi-channel contribution margin &amp; EBITDA accounting for{" "}
-                  <strong>{currentBrand?.name || "125 East"}</strong>.
+                  <strong>{currentBrand?.name || "Active Brand"}</strong>.
                 </p>
               </div>
             </div>

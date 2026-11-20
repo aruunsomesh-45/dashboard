@@ -13,11 +13,12 @@ import {
   CheckCircle2,
   RotateCw,
   AlertCircle,
+  Building2,
 } from "lucide-react";
 
 const RESEND_SECONDS = 60;
 const MAX_VERIFY_ATTEMPTS = 5;
-const COOLDOWN_KEY = "125east_otp_next_at";
+const COOLDOWN_KEY = "app_otp_next_at";
 
 function LoginContent() {
   const router = useRouter();
@@ -40,7 +41,7 @@ function LoginContent() {
     const paramEmail = searchParams.get("email");
     const paramStep = searchParams.get("step");
     const storedEmail =
-      typeof window !== "undefined" ? localStorage.getItem("125east_pending_email") : null;
+      typeof window !== "undefined" ? localStorage.getItem("app_pending_email") : null;
 
     const targetEmail = paramEmail || storedEmail || "";
     if (targetEmail) {
@@ -116,7 +117,7 @@ function LoginContent() {
     setIsLoading(true);
 
     if (typeof window !== "undefined") {
-      localStorage.setItem("125east_pending_email", email.trim().toLowerCase());
+      localStorage.setItem("app_pending_email", email.trim().toLowerCase());
     }
 
     const { error: otpError } = await signInWithOtp(email);
@@ -170,11 +171,11 @@ function LoginContent() {
         {/* Brand Header */}
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-terracotta-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-            125
+            <Building2 className="w-5 h-5 text-white" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-charcoal-900">
-              125 East
+              Dashboard
             </h1>
             <p className="text-xs text-charcoal-500">
               Multi-Tenant Workspace Cockpit
@@ -475,7 +476,7 @@ function LoginContent() {
 
         {/* Footer Links */}
         <div className="pt-2 border-t border-ivory-200 text-center text-xs text-charcoal-500">
-          <span>New to 125 East? </span>
+          <span>Don&apos;t have an account? </span>
           <Link href="/register" className="font-semibold text-terracotta-600 hover:underline">
             Register your Brand
           </Link>

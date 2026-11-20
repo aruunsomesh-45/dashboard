@@ -93,11 +93,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="px-5 py-4 border-b border-forest-800 flex items-center justify-between">
             <div className="flex items-center space-x-2.5">
               <div className="w-8 h-8 rounded-lg bg-terracotta-500 flex items-center justify-center text-white font-bold text-base shadow-sm">
-                125
+                <Building2 className="w-4 h-4 text-white" />
               </div>
               <div>
                 <h1 className="text-sm font-semibold tracking-wide text-ivory-100">
-                  125 East
+                  Dashboard
                 </h1>
               </div>
             </div>
@@ -314,7 +314,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 125 East Retail Ltd"
+                  placeholder="e.g. Acme Retail Ltd"
                   value={newWsName}
                   onChange={(e) => setNewWsName(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-md border border-ivory-300 focus:outline-none focus:border-terracotta-500 bg-ivory-50 text-charcoal-900"
