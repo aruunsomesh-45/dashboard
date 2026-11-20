@@ -22,16 +22,15 @@ const nextConfig = {
   },
   ...(isExport ? {} : {
     async rewrites() {
-      const defaultPublicTunnel = "https://motion-islamic-starting-window.trycloudflare.com";
-      const backendUrl = process.env.BACKEND_URL || (process.env.VERCEL === "1" ? defaultPublicTunnel : "http://127.0.0.1:8001");
-      // When deployed on Vercel without an external backend URL, avoid rewriting to private localhost
-      if (process.env.VERCEL === "1" && (!backendUrl || backendUrl.includes("127.0.0.1") || backendUrl.includes("localhost"))) {
+      // On Vercel production, /api/* is handled by the dynamic catch-all Route Handler
+      // (src/app/api/[[...path]]/route.ts) to provide DNS fault tolerance and fallback routing.
+      if (process.env.VERCEL === "1") {
         return [];
       }
       return [
         {
           source: "/api/:path*",
-          destination: `${backendUrl}/api/:path*`,
+          destination: "http://127.0.0.1:8001/api/:path*",
         },
       ];
     },
