@@ -63,15 +63,23 @@ class BrandIntegrationListView(APIView):
         if provider == Integration.Provider.SHOPIFY:
             raw_domain = credentials.get("shop_domain") or credentials.get("shop_url") or account_identifier
             clean_domain = normalize_shop_domain(raw_domain)
-            if not clean_domain or not (credentials.get("access_token") or "").strip():
+            token = (credentials.get("access_token") or "").strip()
+            if not clean_domain or not token:
                 return Response(
                     {"error": "Shopify Store Domain and Admin API Access Token are required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if token.startswith("shpss_"):
+                return Response(
+                    {
+                        "error": "You entered the API Secret Key (starts with 'shpss_') as your Access Token. Please enter the Admin API Access Token (starts with 'shpat_') from Shopify's 'Install app' or 'Reveal token once' section."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             account_identifier = clean_domain
             credentials = {
                 "shop_domain": clean_domain,
-                "access_token": credentials["access_token"].strip(),
+                "access_token": token,
                 "api_secret": (credentials.get("webhook_secret") or credentials.get("api_secret") or "").strip(),
             }
 
