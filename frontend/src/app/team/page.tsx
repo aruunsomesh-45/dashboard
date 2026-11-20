@@ -29,22 +29,63 @@ export default function TeamPage() {
       const { data, error: rpcError } = await supabase.rpc("list_workspace_members", {
         p_workspace_id: currentWorkspace.id,
       });
-      if (rpcError) throw rpcError;
-      setMembers(
-        (data || []).map((r: any) => ({
-          id: r.id,
-          role: r.role as UserRole,
-          created_at: r.created_at,
-          user: {
-            id: r.user_id,
-            email: r.email,
-            first_name: r.first_name,
-            last_name: r.last_name,
-            mfa_enabled: r.mfa_enabled,
+
+      if (!rpcError && Array.isArray(data)) {
+        setMembers(
+          data.map((r: any) => ({
+            id: r.id,
+            role: r.role as UserRole,
             created_at: r.created_at,
-          },
-        }))
-      );
+            user: {
+              id: r.user_id,
+              email: r.email,
+              first_name: r.first_name,
+              last_name: r.last_name,
+              mfa_enabled: r.mfa_enabled,
+              created_at: r.created_at,
+            },
+          }))
+        );
+        return;
+      }
+
+      // Fallback to direct table query
+      const { data: directData } = await supabase
+        .from("tenancy_workspacemember")
+        .select(`
+          id,
+          role,
+          created_at,
+          user:accounts_user(
+            id,
+            email,
+            first_name,
+            last_name,
+            mfa_enabled,
+            created_at
+          )
+        `)
+        .eq("workspace_id", currentWorkspace.id);
+
+      if (Array.isArray(directData)) {
+        setMembers(
+          directData.map((r: any) => ({
+            id: r.id,
+            role: r.role as UserRole,
+            created_at: r.created_at,
+            user: {
+              id: r.user?.id || "",
+              email: r.user?.email || "",
+              first_name: r.user?.first_name || "",
+              last_name: r.user?.last_name || "",
+              mfa_enabled: r.user?.mfa_enabled || false,
+              created_at: r.user?.created_at || r.created_at,
+            },
+          }))
+        );
+      } else {
+        setMembers([]);
+      }
     } catch {
       setMembers([]);
     } finally {
