@@ -6,7 +6,7 @@ DEBUG = True
 if not SECRET_KEY:  # noqa: F405
     SECRET_KEY = "dev-only-insecure-key-do-not-use-outside-local-development-0123456789"
 
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "testserver"])  # noqa: F405
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "testserver", ".trycloudflare.com", "*"])  # noqa: F405
 
 # Only the local Next.js frontend and deployed Vercel dashboard, never "allow all".
 CORS_ALLOWED_ORIGINS = env.list(  # noqa: F405
@@ -20,7 +20,8 @@ CORS_ALLOWED_ORIGINS = env.list(  # noqa: F405
     ],
 )
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
+CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS) + ["https://*.trycloudflare.com"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Generous throttle rates in local development so local testing is never delayed
 # Copy, don't mutate: base.REST_FRAMEWORK is the same dict object, and mutating it would silently
