@@ -1,15 +1,14 @@
 """
-Authentication security tests: registration, email verification, login, throttling, MFA, recovery codes,
-sessions, CSRF and password storage.
+Authentication security tests: registration, password reset, login, throttling, MFA, recovery codes, sessions,
+CSRF and password storage.
 
-Every test asserts on a protection, so it fails if that protection is removed. Runs on real Postgres.
+Every test asserts on a protection, so it fails if that protection is removed.
 No live third-party calls: the HaveIBeenPwned lookup (urllib) is forced offline for every test.
 
-Assumed contract for email verification (not implemented when these tests were written):
-  * registering sends one email to the new address through django.core.mail
-  * the email body contains a link carrying `token=<token>`
-  * POST /api/auth/verify-email/ {"token": "<token>"} activates the account
-  * tokens live for at most 7 days
+Registration contract: POST /api/auth/register/ {workspace_name, email, password, confirm_password} creates the
+user, the workspace and the owner membership in one transaction and signs the user in (201). A duplicate email
+answers 400 with a clear message (the product chose explicit feedback over enumeration resistance here; login and
+password reset stay non-enumerating).
 """
 import hashlib
 import json
@@ -28,6 +27,7 @@ import pyotp
 import pytest
 from apps.accounts.models import MFARecoveryCode, User
 from apps.accounts.services import generate_recovery_codes
+from apps.tenancy.models import Brand, Workspace, WorkspaceMember
 from django.conf import settings
 from django.contrib.auth.hashers import identify_hasher
 from django.contrib.auth.password_validation import CommonPasswordValidator
@@ -44,7 +44,8 @@ from rest_framework.views import APIView
 from tests.conftest import DEFAULT_PASSWORD
 
 REGISTER = "/api/auth/register/"
-VERIFY_EMAIL = "/api/auth/verify-email/"
+PASSWORD_RESET = "/api/auth/password-reset/"
+PASSWORD_RESET_CONFIRM = "/api/auth/password-reset/confirm/"
 LOGIN = "/api/auth/login/"
 CHALLENGE = "/api/auth/mfa/challenge/"
 MFA_SETUP = "/api/auth/mfa/setup/"
@@ -75,8 +76,9 @@ def login(client, email, password=DEFAULT_PASSWORD):
     return client.post(LOGIN, {"email": email, "password": password}, format="json")
 
 
-def register(client, email, password=STRONG_PASSWORD):
-    return client.post(REGISTER, {"email": email, "password": password}, format="json")
+def register(client, email, password=STRONG_PASSWORD, workspace_name="Acme Co", **overrides):
+    body = {"workspace_name": workspace_name, "email": email, "password": password, "confirm_password": password}
+    return client.post(REGISTER, {**body, **overrides}, format="json")
 
 
 def is_authenticated(client) -> bool:
@@ -106,84 +108,136 @@ def wrong_totp(secret) -> str:
     return next(c for c in ("000000", "111111", "222222", "333333", "444444", "555555") if c not in valid)
 
 
-def verification_token(email) -> str:
-    assert len(mail.outbox) == 1, f"expected exactly one verification email, got {len(mail.outbox)}"
+def reset_link_params(email) -> dict:
+    assert len(mail.outbox) == 1, f"expected exactly one reset email, got {len(mail.outbox)}"
     message = mail.outbox[0]
     assert message.to == [email]
-    match = re.search(r"token=([A-Za-z0-9_\-.:~%]+)", message.body)
-    assert match, f"no token=<token> link in verification email body: {message.body!r}"
-    return match.group(1)
+    uid = re.search(r"uid=([A-Za-z0-9_-]+)", message.body)
+    token = re.search(r"token=([A-Za-z0-9_-]+)", message.body)
+    assert uid and token, f"no reset link in email body: {message.body!r}"
+    return {"uid": uid.group(1), "token": token.group(1)}
 
 
 # ---------------------------------------------------------------------------
 # Registration + email verification
 # ---------------------------------------------------------------------------
 class TestRegistration:
-    def test_response_identical_for_new_and_existing_email(self, user_a):
-        fresh = register(APIClient(), "brand-new@enum.test")
-        existing = register(APIClient(), user_a.email)
+    def test_register_creates_user_workspace_owner_and_session(self):
+        client = APIClient()
+        res = register(client, "Founder@Example.test", workspace_name="Founder Labs")
+        assert res.status_code == 201, res.content
+        body = res.json()
+        assert body["redirect"] == "/dashboard"
+        assert body["user"]["email"] == "founder@example.test", "email is stored lower-cased"
 
-        assert fresh.status_code == existing.status_code, (fresh.status_code, existing.status_code, existing.content)
-        assert fresh.json() == existing.json(), "register response reveals whether the email already has an account"
+        user = User.objects.get(email="founder@example.test")
+        ws = Workspace.objects.get(id=body["workspace"]["id"])
+        assert ws.name == "Founder Labs" and ws.slug == "founder-labs"
+        m = WorkspaceMember.objects.get(user=user, workspace=ws)
+        assert m.role == WorkspaceMember.Role.OWNER
+        assert Brand.objects.filter(workspace=ws).count() == 1, "dashboard needs a default brand"
+        assert [w["slug"] for w in body["workspaces"]] == ["founder-labs"]
 
-        # The existing account must be untouched by the second registration.
+        assert is_authenticated(client), "registration signs the user in"
+        assert client.get(ME).json()["workspaces"][0]["role"] == "owner"
+
+    def test_duplicate_email_is_rejected_case_insensitively(self, user_a):
+        res = register(APIClient(), user_a.email.upper())
+        assert res.status_code == 400, res.content
+        assert res.json()["fields"]["email"] == ["An account with this email already exists."]
+        assert res.json()["error"] == "An account with this email already exists."
+        user_a.refresh_from_db()
+        assert user_a.check_password(DEFAULT_PASSWORD), "existing account must be untouched"
+        assert User.objects.filter(email__iexact=user_a.email).count() == 1
+        assert Workspace.objects.filter(name="Acme Co").count() == 0
+
+    def test_password_confirmation_must_match(self):
+        res = register(APIClient(), "mismatch@reg.test", confirm_password="Something-Else-123")
+        assert res.status_code == 400
+        assert "confirm_password" in res.json()["fields"]
+        assert not User.objects.filter(email="mismatch@reg.test").exists()
+
+    @pytest.mark.parametrize("missing", ["workspace_name", "email", "password", "confirm_password"])
+    def test_every_field_is_required(self, missing):
+        body = {"workspace_name": "W", "email": "req@reg.test", "password": STRONG_PASSWORD, "confirm_password": STRONG_PASSWORD}
+        body.pop(missing)
+        res = APIClient().post(REGISTER, body, format="json")
+        assert res.status_code == 400 and missing in res.json()["fields"], res.content
+        assert not User.objects.filter(email="req@reg.test").exists()
+
+    def test_blank_workspace_name_and_bad_email_rejected(self):
+        res = register(APIClient(), "not-an-email", workspace_name="   ")
+        assert res.status_code == 400
+        assert {"email", "workspace_name"} <= set(res.json()["fields"])
+
+    def test_failure_mid_transaction_leaves_nothing_behind(self):
+        """All writes are one transaction: if the membership insert fails, the user and workspace vanish too."""
+        with mock.patch("apps.tenancy.services.WorkspaceMember.objects.create", side_effect=RuntimeError("boom")):
+            with pytest.raises(RuntimeError):
+                register(APIClient(), "atomic@reg.test", workspace_name="Atomic Inc")
+        assert not User.objects.filter(email="atomic@reg.test").exists()
+        assert not Workspace.objects.filter(name="Atomic Inc").exists()
+
+    def test_same_workspace_name_gets_unique_slug(self):
+        assert register(APIClient(), "one@slug.test", workspace_name="Same Name").status_code == 201
+        assert register(APIClient(), "two@slug.test", workspace_name="Same Name").status_code == 201
+        slugs = sorted(Workspace.objects.filter(name="Same Name").values_list("slug", flat=True))
+        assert slugs == ["same-name", "same-name-1"]
+
+    def test_session_cookie_is_http_only(self):
+        client = APIClient()
+        register(client, "cookie@reg.test")
+        morsel = client.cookies[settings.SESSION_COOKIE_NAME]
+        assert morsel["httponly"] is True
+        assert morsel["samesite"] == "Lax"
+        assert int(morsel["max-age"]) == settings.SESSION_COOKIE_AGE
+
+
+class TestPasswordReset:
+    NEW_PW = "Brand-New-Passphrase-77"
+
+    def confirm(self, params, pw=None):
+        pw = pw or self.NEW_PW
+        return APIClient().post(PASSWORD_RESET_CONFIRM, {**params, "password": pw, "confirm_password": pw}, format="json")
+
+    def test_reset_flow_sets_new_password_and_kills_old_sessions(self, user_a):
+        old_session = APIClient()
+        login(old_session, user_a.email)
+        assert is_authenticated(old_session)
+
+        res = APIClient().post(PASSWORD_RESET, {"email": user_a.email.upper()}, format="json")
+        assert res.status_code == 200
+        params = reset_link_params(user_a.email)
+
+        assert self.confirm(params).status_code == 200
+        assert login(APIClient(), user_a.email, self.NEW_PW).status_code == 200
+        assert login(APIClient(), user_a.email, DEFAULT_PASSWORD).status_code == 400
+        assert not is_authenticated(old_session), "password change must invalidate existing sessions"
+        assert self.confirm(params, "Another-Passphrase-88").status_code == 400, "reset token is single use"
+
+    def test_unknown_email_gets_identical_response_and_no_mail(self, user_a):
+        known = APIClient().post(PASSWORD_RESET, {"email": user_a.email}, format="json")
+        mail.outbox.clear()
+        unknown = APIClient().post(PASSWORD_RESET, {"email": "ghost@nowhere.test"}, format="json")
+        assert (known.status_code, known.json()) == (unknown.status_code, unknown.json())
+        assert len(mail.outbox) == 0
+
+    def test_tampered_token_rejected(self, user_a):
+        APIClient().post(PASSWORD_RESET, {"email": user_a.email}, format="json")
+        params = reset_link_params(user_a.email)
+        params["token"] = params["token"][:-1] + ("a" if params["token"][-1] != "a" else "b")
+        assert self.confirm(params).status_code == 400
         user_a.refresh_from_db()
         assert user_a.check_password(DEFAULT_PASSWORD)
-        assert User.objects.filter(email__iexact=user_a.email).count() == 1
 
-    def test_new_user_is_inactive_and_cannot_log_in_until_verified(self):
-        client = APIClient()
-        res = register(client, "pending@verify.test")
-        assert res.status_code < 300, res.content
+    def test_garbage_uid_rejected(self):
+        assert self.confirm({"uid": "!!!", "token": "x"}).status_code == 400
 
-        user = User.objects.get(email="pending@verify.test")
-        assert user.is_active is False, "account is active before the email address was verified"
-        assert not is_authenticated(client), "registering must not log the user in"
-
-        assert login(client, "pending@verify.test", STRONG_PASSWORD).status_code >= 400
-        assert not is_authenticated(client)
-
-    def test_verification_token_activates_account(self):
-        client = APIClient()
-        register(client, "verify-me@verify.test")
-        token = verification_token("verify-me@verify.test")
-
-        res = client.post(VERIFY_EMAIL, {"token": token}, format="json")
-        assert res.status_code == 200, res.content
-        assert User.objects.get(email="verify-me@verify.test").is_active is True
-        assert login(client, "verify-me@verify.test", STRONG_PASSWORD).status_code == 200
-
-    def test_tampered_verification_token_is_rejected(self):
-        client = APIClient()
-        register(client, "tamper@verify.test")
-        token = verification_token("tamper@verify.test")
-
-        res = client.post(VERIFY_EMAIL, {"token": token[:-1] + ("A" if token[-1] != "A" else "B")}, format="json")
-        assert res.status_code == 400, res.content
-        assert User.objects.get(email="tamper@verify.test").is_active is False
-
-    def test_verification_token_is_single_use(self):
-        client = APIClient()
-        register(client, "once@verify.test")
-        token = verification_token("once@verify.test")
-        assert client.post(VERIFY_EMAIL, {"token": token}, format="json").status_code == 200
-
-        # Account is later disabled; the already-spent token must not be able to switch it back on.
-        User.objects.filter(email="once@verify.test").update(is_active=False)
-        replay = client.post(VERIFY_EMAIL, {"token": token}, format="json")
-        assert replay.status_code == 400, replay.content
-        assert User.objects.get(email="once@verify.test").is_active is False
-
-    def test_verification_token_expires(self):
-        client = APIClient()
-        with freeze_time(datetime.now(UTC)) as clock:
-            register(client, "late@verify.test")
-            token = verification_token("late@verify.test")
-
-            clock.tick(timedelta(days=8))
-            res = client.post(VERIFY_EMAIL, {"token": token}, format="json")
-            assert res.status_code == 400, res.content
-            assert User.objects.get(email="late@verify.test").is_active is False
+    def test_weak_new_password_rejected(self, user_a):
+        APIClient().post(PASSWORD_RESET, {"email": user_a.email}, format="json")
+        params = reset_link_params(user_a.email)
+        res = self.confirm(params, "password123")
+        assert res.status_code == 400 and "password" in res.json()["fields"]
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +434,7 @@ class TestRecoveryCodes:
 
         # No plaintext (with or without the dash) in any column of the table.
         with connection.cursor() as cur:
-            cur.execute(f"SELECT * FROM {MFARecoveryCode._meta.db_table} WHERE user_id = %s", [user_a.id])
+            cur.execute(f"SELECT * FROM {MFARecoveryCode._meta.db_table} WHERE user_id = %s", [str(user_a.id)])
             dump = " ".join(str(value) for row in cur.fetchall() for value in row).upper()
         for code in codes:
             assert code not in dump and code.replace("-", "") not in dump
@@ -479,6 +533,8 @@ SESSION_STATE_CHANGING = [
     ("delete", "/api/w/{ws}/", "WorkspaceDetailView"),
     ("post", "/api/w/{ws}/brands/", "BrandListCreateView"),
     ("post", "/api/w/{ws}/invites/", "InviteCreateView"),
+    ("patch", "/api/w/{ws}/members/{uuid}/", "MemberDetailView"),
+    ("delete", "/api/w/{ws}/members/{uuid}/", "MemberDetailView"),
     ("post", "/api/w/{ws}/alerts/{uuid}/acknowledge/", "AlertAcknowledgeView"),
     ("post", "/api/w/{ws}/alerts/{uuid}/resolve/", "AlertResolveView"),
     ("post", "/api/w/{ws}/b/{brand}/integrations/", "BrandIntegrationListView"),
@@ -492,9 +548,13 @@ ANONYMOUS_STATE_CHANGING = [
     ("post", REGISTER, "RegisterView"),
     ("post", LOGIN, "LoginView"),
     ("post", CHALLENGE, "MFAChallengeView"),
+    ("post", PASSWORD_RESET, "PasswordResetRequestView"),
+    ("post", PASSWORD_RESET_CONFIRM, "PasswordResetConfirmView"),
 ]
 # Inbound provider webhooks: no cookies involved, authenticated by HMAC signature instead.
-CSRF_EXEMPT_VIEWS = {"ShopifyWebhookView", "RazorpayWebhookView", "DelhiveryWebhookView"}
+CSRF_EXEMPT_VIEWS = {
+    "ShopifyWebhookView", "RazorpayWebhookView", "DelhiveryWebhookView", "ShiprocketWebhookView", "MetaWebhookView",
+}
 UNSAFE_METHODS = ("post", "put", "patch", "delete")
 
 
@@ -672,3 +732,18 @@ class TestPasswords:
         assert not User.objects.filter(email="breached@pw.test").exists()
         # k-anonymity: only the 5-char hash prefix leaves the process.
         assert urlopen.call_args.args[0].full_url.endswith(f"/range/{digest[:5]}")
+
+
+class TestLegacyAccounts:
+    def test_user_without_local_password_can_set_one_via_reset(self):
+        """Accounts provisioned by the old Firebase/Supabase sign-in have no usable password; reset is their way in."""
+        legacy = User.objects.create_user(email="legacy@firebase.test")  # password=None -> unusable
+        assert not legacy.has_usable_password()
+        assert login(APIClient(), legacy.email, "anything-at-all-1").status_code == 400
+
+        APIClient().post(PASSWORD_RESET, {"email": legacy.email}, format="json")
+        params = reset_link_params(legacy.email)
+        pw = "First-Local-Passphrase-5"
+        res = APIClient().post(PASSWORD_RESET_CONFIRM, {**params, "password": pw, "confirm_password": pw}, format="json")
+        assert res.status_code == 200, res.content
+        assert login(APIClient(), legacy.email, pw).status_code == 200

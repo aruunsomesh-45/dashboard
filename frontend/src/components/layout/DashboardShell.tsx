@@ -24,7 +24,7 @@ import {
 import { apiFetch } from "@/lib/api";
 
 const navItems = [
-  { name: "Overview", href: "/", icon: LayoutDashboard },
+  { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "P&L Statement", href: "/pnl", icon: ReceiptText },
   { name: "Connect Apps", href: "/integrations", icon: PlugZap },
   { name: "Shopify Store", href: "/shopify", icon: ShoppingBag },
@@ -74,7 +74,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Route guard: nothing from a protected page renders until Supabase confirms a session.
+  // Route guard: nothing from a protected page renders until the server confirms the session.
   // (AuthContext performs the redirect to /login; this prevents a flash of protected UI.)
   if (isLoading || !user) {
     return (
@@ -210,7 +210,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <nav className="p-3 space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
               return (
                 <Link
                   key={item.name}

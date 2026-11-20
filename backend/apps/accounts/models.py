@@ -9,10 +9,23 @@ from django.db import models
 
 
 class UserManager(BaseUserManager):
+    def get_by_natural_key(self, username):
+        """
+        Case-insensitive email lookup used by ModelBackend.authenticate().
+        Exact match first (uses the unique index), then case-insensitive for legacy mixed-case rows.
+        Raises DoesNotExist like the default, so ModelBackend still runs the hasher for unknown emails
+        (keeps response time from revealing which emails have accounts).
+        """
+        email = (username or "").strip()
+        user = self.filter(email=email).first() or self.filter(email__iexact=email).order_by("created_at").first()
+        if user is None:
+            raise self.model.DoesNotExist
+        return user
+
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("Email is required")
-        email = self.normalize_email(email)
+        email = self.normalize_email(email).strip().lower()
         user = self.model(email=email, **extra_fields)
         if password:
             user.set_password(password)

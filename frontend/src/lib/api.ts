@@ -1,11 +1,20 @@
-import { firebaseAuth } from "./firebaseClient";
+// Authentication is a server-side Django session carried by an HTTP-only `sessionid` cookie.
+// Nothing auth-related is ever stored in JS-readable storage; requests just include cookies.
 
-// In-memory token cache for ultra-fast API calls
-let cachedBearerToken: string | null = null;
-
-export function setAuthBearerToken(token: string | null) {
-  cachedBearerToken = token;
+/** Error thrown by apiFetch. `status` is the HTTP status; `fields` holds per-field validation messages. */
+export class ApiError extends Error {
+  status: number;
+  fields: Record<string, string[]>;
+  constructor(message: string, status: number, fields: Record<string, string[]> = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.fields = fields;
+  }
 }
+
+/** Fired on window whenever an internal API call answers 401 (session missing or expired). */
+export const SESSION_EXPIRED_EVENT = "auth:session-expired";
 
 // ─── CSRF helpers ──────────────────────────────────────────────────────────
 // Django sets a readable `csrftoken` cookie (CSRF_COOKIE_HTTPONLY = False).
@@ -56,25 +65,6 @@ export async function apiFetchWithStatus<T>(
 
   // Only attach internal authentication and CSRF headers to internal endpoints
   if (!isExternal) {
-    // Attach JWT Bearer token (Cached memory token first, then Firebase)
-    if (!headers["Authorization"]) {
-      if (cachedBearerToken) {
-        headers["Authorization"] = `Bearer ${cachedBearerToken}`;
-      } else if (typeof window !== "undefined" && !endpoint.includes("/api/auth/csrf")) {
-        try {
-          if (firebaseAuth.currentUser) {
-            const idToken = await firebaseAuth.currentUser.getIdToken();
-            if (idToken) {
-              cachedBearerToken = idToken;
-              headers["Authorization"] = `Bearer ${idToken}`;
-            }
-          }
-        } catch {
-          // Fall back to Django session cookie
-        }
-      }
-    }
-
     // Attach CSRF token for all state-changing verbs
     if (MUTATING.has(method)) {
       const token = getCsrfToken();
@@ -124,7 +114,7 @@ export async function apiFetchWithStatus<T>(
     }
   }
 
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && !url.startsWith("/api/auth/")) {
     // Keep the logged sample small: first 2 items of arrays, max 300 chars overall.
     let sample: string | undefined;
     try {
@@ -169,7 +159,14 @@ export async function apiFetchWithStatus<T>(
         errorDetail = response.statusText;
       }
     }
-    throw new Error(String(errorDetail || `Request failed with status ${response.status}`));
+    const fields =
+      responseData && typeof responseData === "object" && responseData.fields && typeof responseData.fields === "object"
+        ? (responseData.fields as Record<string, string[]>)
+        : {};
+    if (response.status === 401 && !isExternal && typeof window !== "undefined" && !url.startsWith("/api/auth/")) {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    }
+    throw new ApiError(String(errorDetail || `Request failed with status ${response.status}`), response.status, fields);
   }
 
   if (response.status === 204 || responseData === null) {

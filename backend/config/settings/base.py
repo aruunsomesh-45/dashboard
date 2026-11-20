@@ -148,8 +148,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "apps.accounts.firebase_auth.FirebaseAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
+        # Server-side Django sessions (HTTP-only cookie). No bearer tokens are accepted.
+        "apps.accounts.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -158,7 +158,7 @@ REST_FRAMEWORK = {
     # Counters live in the Django cache (LocMemCache).
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
-        "auth": env("THROTTLE_AUTH", default="10/min"),
+        "auth": env("THROTTLE_AUTH", default="5/min"),  # login/register/MFA/password-reset, per client IP
         "sync": env("THROTTLE_SYNC", default="6/min"),
         "ndr": env("THROTTLE_NDR", default="20/min"),
     },
@@ -190,16 +190,29 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = "cache+memory://"
+# Sessions: server-side rows, HTTP-only cookie, absolute expiry (not extended by activity).
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 7  # 7 days max
+SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=60 * 60 * 24 * 7)  # seconds; default 7 days
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = False
+
+# Password reset links (Django's signed, single-use token) point at the frontend.
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
+PASSWORD_RESET_TIMEOUT = env.int("PASSWORD_RESET_TIMEOUT", default=60 * 60 * 2)  # 2 hours
+
+# Outbound email (password reset). Console backend prints emails to the server log until SMTP is configured.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@localhost")
 
 # CSRF — allow JS to read the csrftoken cookie so apiFetch can include X-CSRFToken
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
-
-# Supabase auth (all from env; nothing hard-coded). Set SUPABASE_JWT_SECRET for offline HS256 verification.
-SUPABASE_TENANT_SYNC = env.bool("SUPABASE_TENANT_SYNC", default=True)
 
 
 # ---------------------------------------------------------------------------

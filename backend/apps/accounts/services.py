@@ -98,3 +98,56 @@ def verify_and_consume_recovery_code(user: User, raw_code: str) -> bool:
         return True
     except MFARecoveryCode.DoesNotExist:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Registration + password reset
+# ---------------------------------------------------------------------------
+class DuplicateEmailError(Exception):
+    """Raised when a concurrent registration claimed the email between validation and insert."""
+
+
+def register_user_with_workspace(email: str, password: str, workspace_name: str):
+    """
+    Create user + workspace + owner membership (+ default brand, audit row) in ONE transaction.
+    If any step fails nothing is persisted, so there are never users without a workspace or vice versa.
+    """
+    from django.db import IntegrityError, transaction
+
+    from apps.tenancy.services import create_workspace_for_owner
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(email=email, password=password)
+            workspace, _brand = create_workspace_for_owner(user, workspace_name)
+    except IntegrityError as exc:
+        if User.objects.filter(email__iexact=email).exists():
+            raise DuplicateEmailError(email) from exc
+        raise
+    return user, workspace
+
+
+def send_password_reset_email(user: User) -> None:
+    """Email a single-use reset link. The token is bound to the current password hash and last_login,
+    so it stops working once used (password changes) and expires after PASSWORD_RESET_TIMEOUT."""
+    from django.conf import settings
+    from django.contrib.auth.tokens import default_token_generator
+    from django.core.mail import send_mail
+    from django.utils.encoding import force_bytes
+    from django.utils.http import urlsafe_base64_encode
+
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?uid={uid}&token={token}"
+    hours = max(1, settings.PASSWORD_RESET_TIMEOUT // 3600)
+    send_mail(
+        subject="Reset your password",
+        message=(
+            "We received a request to reset the password for your account.\n\n"
+            f"Reset it here (link valid for {hours} hours, single use):\n{link}\n\n"
+            "If you didn't ask for this, you can ignore this email; your password won't change."
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user.email],
+        fail_silently=False,
+    )

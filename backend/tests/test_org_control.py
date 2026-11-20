@@ -12,8 +12,10 @@ implementation chooses differently):
   * DELETE /api/w/{ws}/members/{membership_id}/                  -> remove a member        (204)
   * "no permission" is 403; touching a resource of another tenant / a brand you are not assigned is 404
   * removing / demoting the last owner is refused with 409 (LAST_OWNER_STATUS)
-  * owners/admins without verified MFA get 403 {"code": "mfa_required"} on every /api/w/{ws}/... route;
-    a Bearer (Supabase) token counts as verified only when it carries the standard claim aal=aal2
+  * owners/admins who have enrolled MFA get 403 {"code": "mfa_required"} on every /api/w/{ws}/... route until
+    their session has passed the TOTP challenge. Members who never enrolled are not gated (a freshly registered
+    owner lands on the dashboard and can enrol later). Authentication is the session cookie only; an
+    Authorization header grants nothing.
   * invites expire after 7 days; an invite can only be accepted by the logged-in user whose email it was sent to
     (anything else answers 404 so invites are not discoverable); expired invites answer 400
   * starter plan: 1 brand, 3 members (pending invites count), 2 integrations; the 4th member / 2nd brand / 3rd
@@ -39,7 +41,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework.test import APIClient
 
-from tests.conftest import DEFAULT_PASSWORD, make_token
+from tests.conftest import DEFAULT_PASSWORD, session_client_for
 
 pytestmark = pytest.mark.django_db
 
@@ -412,15 +414,21 @@ class TestMfaGate:
     @pytest.mark.parametrize("role", ["owner", "admin"])
     def test_privileged_role_without_verified_mfa_gets_403_mfa_required(self, make_org, role, method, path):
         org = make_org(PLAN.ENTERPRISE, roles=("owner",))
-        member = org.add(role, key="privileged", mfa=False)  # logs in with a password only
+        member = org.add(role, key="privileged", mfa=True)  # MFA enrolled...
+        client = session_client_for(member.user, mfa_verified=False)  # ...but this session never passed TOTP
         before = org.snapshot()
 
-        res = hit(org, org.client("privileged"), method, path)
+        res = hit(org, client, method, path)
 
         assert res.status_code == 403, res.content
         assert res.json().get("code") == "mfa_required", res.content
         assert org.snapshot() == before
-        assert member.secret is None
+
+    @pytest.mark.parametrize("role", ["owner", "admin"])
+    def test_unenrolled_privileged_role_is_not_gated(self, make_org, role):
+        org = make_org(PLAN.ENTERPRISE, roles=("owner",) if role == "admin" else ())
+        org.add(role, key="fresh", mfa=False)
+        assert org.client("fresh").get(org.ws).status_code == 200
 
     @pytest.mark.parametrize(("method", "path"), GATED_ROUTES)
     @pytest.mark.parametrize("role", ["owner", "admin"])
@@ -445,21 +453,13 @@ class TestMfaGate:
         assert client.get("/api/auth/me/").status_code == 200
         assert client.post("/api/auth/mfa/setup/").status_code == 200
 
-    @pytest.mark.parametrize("role", ["owner", "admin"])
-    def test_bearer_token_needs_mfa_assurance_for_privileged_roles(self, make_org, client_for, role):
+    def test_bearer_header_with_mfa_claims_grants_nothing(self, make_org):
+        """Token auth is gone: an Authorization header (even one claiming aal2) is not a way in."""
         org = make_org(PLAN.ENTERPRISE, roles=("owner",))
-        user = org.add(role, key="privileged", mfa=False).user
-        plain = client_for(user)  # Supabase token with no MFA claim
-        res = plain.get(org.ws)
-        assert res.status_code == 403 and res.json().get("code") == "mfa_required", res.content
-
-        aal2 = APIClient()
-        aal2.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(user, aal='aal2')}")
-        assert aal2.get(org.ws).status_code == 200
-
-    def test_bearer_token_for_analyst_is_not_gated(self, make_org, client_for):
-        org = make_org(PLAN.ENTERPRISE, roles=("owner", "analyst"))
-        assert client_for(org.members["analyst"].user).get(org.ws).status_code == 200
+        c = APIClient()
+        c.credentials(HTTP_AUTHORIZATION="Bearer eyJhbGciOiJIUzI1NiJ9.eyJhYWwiOiJhYWwyIn0.x")
+        assert c.get(org.ws).status_code == 401
+        assert c.get("/api/w/").status_code == 401
 
 
 # ---------------------------------------------------------------------------

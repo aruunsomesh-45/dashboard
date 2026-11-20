@@ -98,8 +98,12 @@ class TestNoDebugBypass:
     def test_unauthenticated_cannot_resolve_tenant_even_in_debug(self, settings, workspace_a, brand_a):
         settings.DEBUG = True
         c = APIClient()
-        assert c.get(f"/api/w/{workspace_a.slug}/").status_code == 404
-        assert c.get(f"/api/w/{workspace_a.slug}/b/{brand_a.id}/shopify/stats/").status_code == 404
+        # 401 (not signed in), identical for real and made-up slugs: nothing about the tenant is revealed.
+        real = c.get(f"/api/w/{workspace_a.slug}/")
+        fake = c.get("/api/w/no-such-workspace/")
+        assert real.status_code == fake.status_code == 401
+        assert real.content == fake.content
+        assert c.get(f"/api/w/{workspace_a.slug}/b/{brand_a.id}/shopify/stats/").status_code == 401
         assert c.get("/api/w/").status_code in (401, 403)
         assert c.post("/api/w/", {"name": "x"}, format="json").status_code in (401, 403)
 

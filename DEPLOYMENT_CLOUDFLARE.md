@@ -61,14 +61,7 @@ If connecting this repository to **Cloudflare Pages**:
 | Variable | Required | Example / Default | Description |
 | :--- | :---: | :--- | :--- |
 | `BACKEND_URL` | **Yes** | `http://127.0.0.1:8001` (Unified) or `https://api.domain.com` | Destination URL for `/api/*` rewrites |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | **Yes** | `AIzaSy...` | Firebase Web API key |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | **Yes** | `east-b2b-saas.firebaseapp.com` | Firebase Auth Domain |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | **Yes** | `east-b2b-saas` | Firebase Project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Optional | `east-b2b-saas.appspot.com` | Firebase Storage Bucket |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Optional | `123456789012` | Firebase Sender ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Optional | `1:123456789012:web:...` | Firebase App ID |
-| `NEXT_PUBLIC_SUPABASE_URL` | Optional | `https://ybyroxyofqfpozvfedhc.supabase.co` | Supabase fallback URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional | `eyJhbGci...` | Supabase anon key |
+| `SESSION_COOKIE_NAME` | Optional | `sessionid` | Must match Django's session cookie name (used by the route-guard middleware) |
 
 ### Backend Environment Variables (Django / Container)
 | Variable | Required | Example / Default | Description |
@@ -82,8 +75,14 @@ If connecting this repository to **Cloudflare Pages**:
 | `CORS_ALLOWED_ORIGINS` | **Yes** | `https://yourdomain.com` | Allowed frontend origins for CORS |
 | `CSRF_TRUSTED_ORIGINS` | **Yes** | `https://yourdomain.com` | Trusted origins for CSRF POST validation |
 | `SECURE_SSL_REDIRECT` | Optional | `false` (in unified) or `true` | Set `false` when internal proxy terminates SSL |
-| `FIREBASE_PROJECT_ID` | **Yes** | `east-b2b-saas` | Firebase project for token verification |
-| `FIREBASE_CREDENTIALS_JSON` | Optional | `{ "type": "service_account", ... }` | Service account JSON string for production |
+| `SESSION_COOKIE_AGE` | Optional | `604800` | Session lifetime in seconds (absolute; default 7 days) |
+| `FRONTEND_URL` | **Yes** | `https://yourdomain.com` | Base URL used in password-reset emails |
+| `EMAIL_BACKEND` | **Yes** | `django.core.mail.backends.smtp.EmailBackend` | Defaults to console (prints emails to logs) |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | **Yes** (SMTP) | `smtp.example.com` / `587` | SMTP credentials for password-reset emails |
+| `DEFAULT_FROM_EMAIL` | **Yes** | `no-reply@yourdomain.com` | Sender address for password-reset emails |
+
+> Authentication is email/password with server-side Django sessions (HTTP-only `sessionid` cookie).
+> The frontend must reach the API on the **same origin** (the Next.js `/api/*` rewrite) so the cookie is sent.
 
 ---
 

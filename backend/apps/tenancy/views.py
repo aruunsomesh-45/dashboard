@@ -2,16 +2,12 @@ import hashlib
 import secrets
 from datetime import timedelta
 
-from django.conf import settings
 from django.http import Http404
 from django.utils import timezone
-from django.utils.text import slugify
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from apps.accounts.models import User
 
 from .models import AuditLog, Brand, BrandMember, Invite, Workspace, WorkspaceMember
 from .permissions import (
@@ -25,6 +21,7 @@ from .serializers import (
     WorkspaceMemberSerializer,
     WorkspaceSerializer,
 )
+from .services import create_workspace_for_owner
 
 
 class WorkspaceListCreateView(APIView):
@@ -76,28 +73,11 @@ class WorkspaceListCreateView(APIView):
         if not isinstance(raw_name, str) or not raw_name.strip():
             return Response({"error": "Workspace name is required and must be a string."}, status=status.HTTP_400_BAD_REQUEST)
         name = raw_name.strip()
+        if len(name) > 255:
+            return Response({"error": "Workspace name must be at most 255 characters."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate unique slug
-        base_slug = slugify(name) or "workspace"
-        slug = base_slug
-        counter = 1
-        while Workspace.objects.filter(slug=slug).exists():
-            slug = f"{base_slug}-{counter}"
-            counter += 1
-
-        workspace = Workspace.objects.create(name=name, slug=slug, plan=Workspace.Plan.STARTER)
-
-        # Creator is Owner
-        WorkspaceMember.objects.create(workspace=workspace, user=user, role=WorkspaceMember.Role.OWNER)
-
-        brand = Brand.objects.create(workspace=workspace, name=f"{name} Brand", currency="INR", timezone="Asia/Kolkata")
-
-        AuditLog.objects.create(
-            workspace=workspace,
-            actor=user,
-            action="workspace_created",
-            target=workspace.name,
-        )
+        # Workspace + owner membership + default brand + audit row, all in one transaction.
+        workspace, brand = create_workspace_for_owner(user, name)
 
         resp_data = WorkspaceSerializer(workspace).data
         resp_data["role"] = WorkspaceMember.Role.OWNER

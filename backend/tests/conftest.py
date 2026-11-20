@@ -52,44 +52,26 @@ def brand_b(db, workspace_b):
 
 
 # ---------------------------------------------------------------------------
-# Real-JWT auth helpers (exercise SupabaseJWTAuthentication, not force_authenticate)
+# Session auth helper (the API's only authentication method: an HTTP-only session cookie)
 # ---------------------------------------------------------------------------
-import time  # noqa: E402
+def session_client_for(user, mfa_verified=True):
+    """APIClient carrying a real server-side Django session for `user` (sessionid cookie).
 
-import jwt  # noqa: E402
-
-TEST_JWT_SECRET = "unit-test-supabase-jwt-secret-0123456789-abcdefghij"
-
-
-@pytest.fixture(autouse=True)
-def _supabase_env(monkeypatch):
-    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_JWT_SECRET)
-
-
-def make_token(user, secret=TEST_JWT_SECRET, exp_delta=3600, aud="authenticated", **extra):
-    now = int(time.time())
-    claims = {
-        "sub": str(user.id),
-        "email": user.email,
-        "aud": aud,
-        "role": "authenticated",
-        "iat": now,
-        "exp": now + exp_delta,
-        **extra,
-    }
-    return jwt.encode(claims, secret, algorithm="HS256")
+    mfa_verified=True mirrors a session that completed the TOTP challenge, which owners/admins with MFA
+    enrolled need for workspace routes. Pass False to model a session that never passed it.
+    """
+    c = APIClient()
+    c.force_login(user)
+    session = c.session
+    session["mfa_verified"] = mfa_verified
+    session.save()
+    return c
 
 
 @pytest.fixture
 def client_for():
-    """client_for(user) -> APIClient that sends a valid Bearer JWT for that user."""
-
-    def _make(user):
-        c = APIClient()
-        c.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(user)}")
-        return c
-
-    return _make
+    """client_for(user) -> APIClient authenticated with a real session cookie for that user."""
+    return session_client_for
 
 
 # ---------------------------------------------------------------------------

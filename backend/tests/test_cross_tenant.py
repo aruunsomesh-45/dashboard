@@ -17,7 +17,7 @@ from apps.commerce.models import CanonicalShipmentStatus, Order, PaymentAttempt,
 from apps.integrations.crypto import encrypt_credentials
 from apps.integrations.models import Integration
 from apps.tenancy.models import Brand, Workspace, WorkspaceMember
-from tests.conftest import User, make_token
+from tests.conftest import User
 
 SECRET_MARKERS = ["B-SECRET-ORDER-777", "B-SECRET-AWB-999", "pay_B_SECRET_1", "B Secret Brand", "b-secret-shop"]
 
@@ -199,7 +199,6 @@ class TestNdrCrossBrandAwbCollision:
                                    encrypted_credentials=encrypt_credentials({"api_token": "tok"}))
         with mock.patch("apps.integrations.delhivery.client.DelhiveryClient._post", return_value={"ok": 1}):
             c = client_for(world["ua"])
-            c.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(world['ua'], aal='aal2')}")
             res = c.post(
                 f"/api/w/{wa.slug}/b/{ba.id}/logistics/ndr/{mine.awb}/action/", {"action": "reattempt"}, format="json")
         assert res.status_code == 200

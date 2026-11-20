@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabaseClient";
+import { ApiError, apiFetch } from "@/lib/api";
 import { WorkspaceMember, UserRole } from "@/types/auth";
 import { UserPlus, Copy, Check, Clock } from "lucide-react";
 
@@ -25,69 +25,17 @@ export default function TeamPage() {
   const fetchMembers = async () => {
     if (!currentWorkspace) return;
     setIsLoading(true);
+    setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc("list_workspace_members", {
-        p_workspace_id: currentWorkspace.id,
-      });
-
-      if (!rpcError && Array.isArray(data)) {
-        setMembers(
-          data.map((r: any) => ({
-            id: r.id,
-            role: r.role as UserRole,
-            created_at: r.created_at,
-            user: {
-              id: r.user_id,
-              email: r.email,
-              first_name: r.first_name,
-              last_name: r.last_name,
-              mfa_enabled: r.mfa_enabled,
-              created_at: r.created_at,
-            },
-          }))
-        );
-        return;
-      }
-
-      // Fallback to direct table query
-      const { data: directData } = await supabase
-        .from("tenancy_workspacemember")
-        .select(`
-          id,
-          role,
-          created_at,
-          user:accounts_user(
-            id,
-            email,
-            first_name,
-            last_name,
-            mfa_enabled,
-            created_at
-          )
-        `)
-        .eq("workspace_id", currentWorkspace.id);
-
-      if (Array.isArray(directData)) {
-        setMembers(
-          directData.map((r: any) => ({
-            id: r.id,
-            role: r.role as UserRole,
-            created_at: r.created_at,
-            user: {
-              id: r.user?.id || "",
-              email: r.user?.email || "",
-              first_name: r.user?.first_name || "",
-              last_name: r.user?.last_name || "",
-              mfa_enabled: r.user?.mfa_enabled || false,
-              created_at: r.user?.created_at || r.created_at,
-            },
-          }))
-        );
-      } else {
-        setMembers([]);
-      }
-    } catch {
+      const data = await apiFetch<WorkspaceMember[]>(`/api/w/${currentWorkspace.slug}/members/`);
+      setMembers(Array.isArray(data) ? data : []);
+    } catch (err) {
       setMembers([]);
+      if (err instanceof ApiError && err.status === 403) {
+        setError("Only workspace owners and admins can view the member list.");
+      } else if (err instanceof Error) {
+        setError(err.message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +43,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     fetchMembers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWorkspace]);
 
   const handleSendInvite = async (e: React.FormEvent) => {
@@ -104,26 +53,14 @@ export default function TeamPage() {
     setIsSubmitting(true);
 
     try {
-      const { data: res, error: rpcError } = await supabase.rpc("create_invite", {
-        p_workspace_id: currentWorkspace.id,
-        p_email: inviteEmail.trim(),
-        p_role: inviteRole,
+      const res = await apiFetch<{ invite_url: string }>(`/api/w/${currentWorkspace.slug}/invites/`, {
+        method: "POST",
+        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
       });
-      if (rpcError) {
-        const m = rpcError.message || "";
-        throw new Error(
-          m.includes("already_member") ? "That person is already a member of this workspace."
-          : m.includes("forbidden") ? "You don't have permission to invite with that role."
-          : m.includes("invalid_email") ? "Enter a valid email address."
-          : "Failed to generate invite."
-        );
-      }
-
-      const fullUrl = `${window.location.origin}/invites/accept?token=${encodeURIComponent(res.token)}`;
-      setGeneratedInviteUrl(fullUrl);
+      setGeneratedInviteUrl(`${window.location.origin}${res.invite_url}`);
       setInviteEmail("");
     } catch (err: any) {
-      setError(err.message || "Failed to generate invite.");
+      setError(err?.message || "Failed to generate invite.");
     } finally {
       setIsSubmitting(false);
     }

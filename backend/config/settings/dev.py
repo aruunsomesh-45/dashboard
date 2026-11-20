@@ -23,8 +23,9 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = list(CORS_ALLOWED_ORIGINS)
 
 # Generous throttle rates in local development so local testing is never delayed
-REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {  # noqa: F405
-    "auth": "1000/min",
-    "sync": "1000/min",
-    "ndr": "1000/min",
+# Copy, don't mutate: base.REST_FRAMEWORK is the same dict object, and mutating it would silently
+# replace the shipped production rates for anything that reads config.settings.base.
+REST_FRAMEWORK = {  # noqa: F405
+    **REST_FRAMEWORK,  # noqa: F405
+    "DEFAULT_THROTTLE_RATES": {"auth": "1000/min", "sync": "1000/min", "ndr": "1000/min"},
 }

@@ -4,6 +4,7 @@ import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { safeNextPath } from "@/lib/authRedirect";
 import { useAuth } from "@/context/AuthContext";
 import { ShieldCheck, KeyRound, AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 
@@ -11,7 +12,7 @@ function MFAChallengeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailParam = searchParams.get("email") || "";
-  const nextParam = searchParams.get("next") || "/";
+  const nextParam = safeNextPath(searchParams.get("next"));
 
   const { refreshAuth } = useAuth();
   const [code, setCode] = useState("");

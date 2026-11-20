@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { safeNextPath, loginUrlFor } from "../../frontend/src/lib/authRedirect";
+import { safeNextPath, loginUrlFor, DEFAULT_AFTER_LOGIN } from "../../frontend/src/lib/authRedirect";
 
 const BS = String.fromCharCode(92); // backslash
 
@@ -34,23 +34,27 @@ test.describe("Redirect validation (open-redirect protection)", () => {
     "/login",
     "/login?next=/x",
     "/register",
-    "/auth/callback",
+    "/forgot-password",
+    "/reset-password?uid=x&token=y",
+    "/mfa-challenge",
     "",
   ];
   for (const input of blocked) {
-    test(`rejects ${JSON.stringify(input)} -> "/"`, () => {
-      expect(safeNextPath(input)).toBe("/");
+    test(`rejects ${JSON.stringify(input)} -> "/dashboard"`, () => {
+      expect(safeNextPath(input)).toBe(DEFAULT_AFTER_LOGIN);
     });
   }
 
-  test("null/undefined fall back to /", () => {
-    expect(safeNextPath(null)).toBe("/");
-    expect(safeNextPath(undefined)).toBe("/");
+  test("null/undefined fall back to /dashboard", () => {
+    expect(DEFAULT_AFTER_LOGIN).toBe("/dashboard");
+    expect(safeNextPath(null)).toBe("/dashboard");
+    expect(safeNextPath(undefined)).toBe("/dashboard");
   });
 
   test("loginUrlFor encodes the return path and expiry reason", () => {
     expect(loginUrlFor("/team", "expired")).toBe("/login?next=%2Fteam&reason=expired");
     expect(loginUrlFor("/")).toBe("/login");
+    expect(loginUrlFor("/dashboard")).toBe("/login");
     expect(loginUrlFor("//evil.com")).toBe("/login");
   });
 });

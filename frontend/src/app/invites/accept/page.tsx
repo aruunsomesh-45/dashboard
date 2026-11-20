@@ -2,8 +2,6 @@
 
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-import { firebaseAuth } from "@/lib/firebaseClient";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -13,12 +11,12 @@ const PENDING_KEY = "app_pending_invite";
 function AcceptInviteContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const { user, refreshAuth } = useAuth();
+  const { user, isLoading, refreshAuth } = useAuth();
   const [state, setState] = useState<"working" | "done" | "error">("working");
   const started = useRef(false);
 
   useEffect(() => {
-    if (started.current) return;
+    if (isLoading || started.current) return; // wait until the session check has finished
     started.current = true;
 
     async function run() {
@@ -30,15 +28,12 @@ function AcceptInviteContent() {
       }
       if (urlToken) window.history.replaceState({}, "", "/invites/accept");
 
-      // Check if user is logged in
-      const activeUser = user || firebaseAuth.currentUser;
-      if (!activeUser) {
+      if (!user) {
         sessionStorage.setItem(PENDING_KEY, token);
         router.replace("/login?next=" + encodeURIComponent("/invites/accept"));
         return;
       }
 
-      // Try Django backend first
       let success = false;
       try {
         await apiFetch("/api/w/invites/accept/", {
@@ -46,12 +41,8 @@ function AcceptInviteContent() {
           body: JSON.stringify({ token }),
         });
         success = true;
-      } catch (backendErr) {
-        // Fallback to database RPC
-        try {
-          const { error } = await supabase.rpc("accept_invite", { p_token: token });
-          if (!error) success = true;
-        } catch {}
+      } catch {
+        success = false;
       }
 
       sessionStorage.removeItem(PENDING_KEY);
@@ -63,10 +54,10 @@ function AcceptInviteContent() {
 
       await refreshAuth();
       setState("done");
-      setTimeout(() => router.replace("/"), 1200);
+      setTimeout(() => router.replace("/dashboard"), 1200);
     }
     run();
-  }, [params, router, user, refreshAuth]);
+  }, [params, router, user, isLoading, refreshAuth]);
 
   return (
     <div className="min-h-screen bg-ivory-100 flex items-center justify-center p-4 font-sans">

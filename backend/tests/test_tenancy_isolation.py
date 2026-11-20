@@ -4,10 +4,13 @@ from rest_framework import status
 
 @pytest.mark.django_db
 class TestTenantIsolation:
-    def test_unauthenticated_request_returns_404_not_403(self, api_client, workspace_a):
-        """Unauthenticated requests to tenant endpoints must return 404 to avoid leaking tenant existence."""
-        response = api_client.get(f"/api/w/{workspace_a.slug}/")
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+    def test_unauthenticated_request_does_not_leak_tenant_existence(self, api_client, workspace_a):
+        """Without a session every tenant URL answers the same 401 (real or made-up slug), so the response
+        reveals nothing about which workspaces exist, while still telling the UI the session is gone."""
+        real = api_client.get(f"/api/w/{workspace_a.slug}/")
+        fake = api_client.get("/api/w/does-not-exist/")
+        assert real.status_code == fake.status_code == status.HTTP_401_UNAUTHORIZED
+        assert real.content == fake.content
 
     def test_user_a_gets_404_on_workspace_b_endpoints(self, api_client, user_a, workspace_b, brand_b):
         """User A must receive 404 for any resource belonging to Workspace B."""

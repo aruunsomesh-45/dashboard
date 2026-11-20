@@ -9,12 +9,21 @@ from rest_framework import status
 class TestAuthenticationAndMFA:
     def test_user_registration_requires_10_char_password(self, api_client):
         # Short password fails
-        res_short = api_client.post("/api/auth/register/", {"email": "short@test.com", "password": "pass"})
+        res_short = api_client.post(
+            "/api/auth/register/",
+            {"workspace_name": "W", "email": "short@test.com", "password": "pass", "confirm_password": "pass"},
+        )
         assert res_short.status_code == status.HTTP_400_BAD_REQUEST
 
         # Valid password succeeds with Argon2
         res_valid = api_client.post(
-            "/api/auth/register/", {"email": "newuser@test.com", "password": "SuperSecurePassword123!"}
+            "/api/auth/register/",
+            {
+                "workspace_name": "New Co",
+                "email": "newuser@test.com",
+                "password": "SuperSecurePassword123!",
+                "confirm_password": "SuperSecurePassword123!",
+            },
         )
         assert res_valid.status_code == status.HTTP_201_CREATED
         user = User.objects.get(email="newuser@test.com")
