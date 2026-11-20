@@ -82,3 +82,53 @@ class MFARecoveryCode(models.Model):
 
     def is_used(self) -> bool:
         return self.used_at is not None
+
+
+class UserMFA(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="mfa")
+    encrypted_totp_secret = models.TextField(blank=True)
+    is_enabled = models.BooleanField(default=False)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    last_used_step = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "User MFA"
+        verbose_name_plural = "User MFA Configurations"
+
+    def __str__(self):
+        return f"MFA for {self.user.email} (enabled={self.is_enabled})"
+
+
+class MFAChallenge(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="mfa_challenges")
+    challenge_token_hash = models.CharField(max_length=64, db_index=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "MFA Challenge"
+        verbose_name_plural = "MFA Challenges"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Challenge for {self.user.email} (consumed={self.consumed_at is not None})"
+
+    def is_valid(self) -> bool:
+        from django.utils import timezone
+        if self.consumed_at is not None:
+            return False
+        if self.attempts >= 5:
+            return False
+        return timezone.now() < self.expires_at
+
+    def consume(self):
+        from django.utils import timezone
+        self.consumed_at = timezone.now()
+        self.save(update_fields=["consumed_at"])
+

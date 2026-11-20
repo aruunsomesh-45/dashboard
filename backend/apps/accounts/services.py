@@ -4,11 +4,43 @@ import io
 import secrets
 import string
 import urllib.request
+from typing import Optional
 
+from cryptography.fernet import Fernet
+from django.conf import settings
 import pyotp
 import qrcode
 
-from .models import MFARecoveryCode, User
+from .models import MFAChallenge, MFARecoveryCode, User, UserMFA
+
+
+def _get_mfa_cipher() -> Fernet:
+    """Returns a Fernet cipher instance for encrypting TOTP secrets at rest."""
+    key = getattr(settings, "MFA_ENCRYPTION_KEY", None)
+    if not key:
+        derived = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
+        key = base64.urlsafe_b64encode(derived)
+    elif isinstance(key, str):
+        key = key.encode()
+    return Fernet(key)
+
+
+def encrypt_totp_secret(raw_secret: str) -> str:
+    """Encrypts a plaintext base32 TOTP secret at rest."""
+    if not raw_secret:
+        return ""
+    return _get_mfa_cipher().encrypt(raw_secret.encode()).decode()
+
+
+def decrypt_totp_secret(encrypted_secret: str) -> str:
+    """Decrypts an encrypted TOTP secret."""
+    if not encrypted_secret:
+        return ""
+    try:
+        return _get_mfa_cipher().decrypt(encrypted_secret.encode()).decode()
+    except Exception:
+        # Fallback if secret was previously unencrypted
+        return encrypted_secret
 
 
 def check_have_i_been_pwned(password: str) -> bool:
@@ -59,8 +91,105 @@ def verify_totp_code(secret: str, code: str) -> bool:
     """Validates 6-digit TOTP code with standard time drift window."""
     if not secret or not code:
         return False
+    clean = code.strip().replace(" ", "").replace("-", "")
+    if not clean.isdigit() or len(clean) != 6:
+        return False
     totp = pyotp.TOTP(secret)
-    return totp.verify(code.strip(), valid_window=1)
+    return totp.verify(clean, valid_window=1)
+
+
+def verify_totp_with_anti_replay(user: User, secret: str, code: str) -> bool:
+    """
+    Validates 6-digit TOTP code with valid_window=1 (±30s drift) and prevents reuse
+    of codes within the same step.
+    """
+    if not secret or not code:
+        return False
+    clean = code.strip().replace(" ", "").replace("-", "")
+    if not clean.isdigit() or len(clean) != 6:
+        return False
+
+    totp = pyotp.TOTP(secret)
+    import datetime
+    from django.core.cache import cache
+
+    now_dt = datetime.datetime.now()
+    if not totp.verify(clean, for_time=now_dt, valid_window=1):
+        return False
+
+    current_step = totp.timecode(now_dt)
+    matched_step = None
+    for offset in (0, -1, 1):
+        step = current_step + offset
+        if totp.generate_otp(step) == clean:
+            matched_step = step
+            break
+
+    if matched_step is None:
+        matched_step = current_step
+
+    replay_key = f"mfa_step:{user.id}:{matched_step}"
+    if cache.get(replay_key):
+        return False
+
+    user_mfa = getattr(user, "mfa", None)
+    if user_mfa and user_mfa.last_used_step and user_mfa.last_used_step >= matched_step:
+        return False
+
+    cache.set(replay_key, True, timeout=120)
+    if user_mfa:
+        user_mfa.last_used_step = matched_step
+        user_mfa.save(update_fields=["last_used_step"])
+
+    return True
+
+
+def create_mfa_challenge(user: User, timeout_minutes: int = 5) -> tuple[MFAChallenge, str]:
+    """
+    Creates a single-use cryptographically random MFA challenge.
+    Stores only the SHA256 hash in the database, returns the raw token to the client.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires_at = timezone.now() + timedelta(minutes=timeout_minutes)
+
+    challenge = MFAChallenge.objects.create(
+        user=user,
+        challenge_token_hash=token_hash,
+        expires_at=expires_at,
+    )
+    return challenge, raw_token
+
+
+def get_valid_mfa_challenge(raw_token: str) -> tuple[Optional[MFAChallenge], Optional[str]]:
+    """
+    Validates challenge by raw token:
+    Returns (challenge, None) on success, or (None, error_message) on failure.
+    """
+    from django.utils import timezone
+
+    if not raw_token:
+        return None, "MFA challenge token is required."
+
+    token_hash = hashlib.sha256(raw_token.strip().encode()).hexdigest()
+    challenge = MFAChallenge.objects.filter(challenge_token_hash=token_hash).first()
+
+    if not challenge:
+        return None, "Invalid or expired MFA challenge. Please sign in again."
+
+    if challenge.consumed_at is not None:
+        return None, "MFA challenge has already been used. Please sign in again."
+
+    if timezone.now() > challenge.expires_at:
+        return None, "MFA challenge has expired. Please sign in again."
+
+    if challenge.attempts >= 5:
+        return None, "Too many failed attempts. Please sign in again."
+
+    return challenge, None
 
 
 def generate_recovery_codes(user: User, count: int = 10) -> list[str]:

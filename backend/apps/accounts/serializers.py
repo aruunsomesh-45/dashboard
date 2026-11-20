@@ -77,11 +77,31 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class MFAChallengeSerializer(serializers.Serializer):
+    challenge_token = serializers.CharField(required=False, allow_blank=True)
     code = serializers.CharField(max_length=32)
 
 
+class MFAVerifySerializer(serializers.Serializer):
+    challenge_token = serializers.CharField(required=False, allow_blank=True)
+    code = serializers.CharField(max_length=16)
+
+
+class MFARecoverySerializer(serializers.Serializer):
+    challenge_token = serializers.CharField(required=False, allow_blank=True)
+    recovery_code = serializers.CharField(max_length=32)
+
+
+class MFADisableSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+    code = serializers.CharField(max_length=32, required=False, allow_blank=True)
+
+
+class MFARecoveryRegenerateSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+
 class MFASetupConfirmSerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=6, min_length=6)
+    code = serializers.CharField(max_length=16, min_length=6)
 
 
 class UserSerializer(serializers.ModelSerializer):

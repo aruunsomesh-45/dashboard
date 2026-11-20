@@ -16,12 +16,16 @@ from rest_framework.views import APIView
 from apps.tenancy.models import BrandMember, WorkspaceMember
 
 from .authentication import CsrfProtectedMixin
-from .models import User
+from .models import MFAChallenge, MFARecoveryCode, User, UserMFA
 from .serializers import (
     DUPLICATE_EMAIL,
     LoginSerializer,
     MFAChallengeSerializer,
+    MFADisableSerializer,
+    MFARecoveryRegenerateSerializer,
+    MFARecoverySerializer,
     MFASetupConfirmSerializer,
+    MFAVerifySerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     RegisterSerializer,
@@ -30,14 +34,19 @@ from .serializers import (
 )
 from .services import (
     DuplicateEmailError,
+    create_mfa_challenge,
+    decrypt_totp_secret,
+    encrypt_totp_secret,
     generate_qr_code_base64,
     generate_recovery_codes,
     generate_totp_secret,
     get_totp_provisioning_uri,
+    get_valid_mfa_challenge,
     register_user_with_workspace,
     send_password_reset_email,
     verify_and_consume_recovery_code,
     verify_totp_code,
+    verify_totp_with_anti_replay,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,11 +175,19 @@ class LoginView(CsrfProtectedMixin, APIView):
         user = serializer.validated_data["user"]
 
         if user.mfa_enabled:
-            # Password step done; the session is NOT authenticated until the TOTP challenge passes.
-            request.session["pre_mfa_user_id"] = str(user.id)
+            # Generate cryptographic challenge token for TOTP step
             from django.utils import timezone
+            _challenge, raw_token = create_mfa_challenge(user, timeout_minutes=5)
+            request.session["pre_mfa_user_id"] = str(user.id)
             request.session["pre_mfa_at"] = timezone.now().timestamp()
-            return Response({"mfa_required": True, "email": user.email}, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    "mfa_required": True,
+                    "challenge_token": raw_token,
+                    "email": user.email,
+                },
+                status=status.HTTP_200_OK,
+            )
 
         start_session(request, user)
         return Response(
@@ -184,6 +201,10 @@ class LoginView(CsrfProtectedMixin, APIView):
 
 
 class MFAChallengeView(CsrfProtectedMixin, APIView):
+    """
+    POST /api/auth/mfa/challenge/ or POST /api/v1/auth/mfa/verify/
+    Verifies 6-digit TOTP code via challenge_token or active pre_mfa session.
+    """
     permission_classes = [AllowAny]
     throttle_scope = "auth"
 
@@ -192,45 +213,62 @@ class MFAChallengeView(CsrfProtectedMixin, APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        user_id = request.session.get("pre_mfa_user_id")
-        pre_mfa_at = request.session.get("pre_mfa_at")
-        from django.utils import timezone
-        if not user_id or not pre_mfa_at or (timezone.now().timestamp() - pre_mfa_at) > 300:
-            request.session.pop("pre_mfa_user_id", None)
-            request.session.pop("pre_mfa_at", None)
-            return Response(
-                {"error": "No active MFA login session found. Please log in again."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        try:
-            user = User.objects.get(id=user_id, is_active=True)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_401_UNAUTHORIZED)
-
+        challenge_token = serializer.validated_data.get("challenge_token")
         code = serializer.validated_data["code"].strip()
 
-        # Check TOTP first (with anti-replay check)
-        from django.core.cache import cache
-        replay_key = f"mfa_used:{user.id}:{code}"
-        if cache.get(replay_key):
-            is_valid_totp = False
-        else:
-            is_valid_totp = verify_totp_code(user.mfa_secret, code)
-            if is_valid_totp:
-                cache.set(replay_key, True, timeout=90)
-        is_valid_recovery = False
+        challenge = None
+        user = None
 
+        if challenge_token:
+            challenge, err = get_valid_mfa_challenge(challenge_token)
+            if err:
+                return Response({"error": err}, status=status.HTTP_401_UNAUTHORIZED if "expired" in err or "sign in again" in err else status.HTTP_400_BAD_REQUEST)
+            user = challenge.user
+        else:
+            user_id = request.session.get("pre_mfa_user_id")
+            pre_mfa_at = request.session.get("pre_mfa_at")
+            from django.utils import timezone
+            if not user_id or not pre_mfa_at or (timezone.now().timestamp() - pre_mfa_at) > 300:
+                request.session.pop("pre_mfa_user_id", None)
+                request.session.pop("pre_mfa_at", None)
+                return Response(
+                    {"error": "No active MFA login session found. Please log in again."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            try:
+                user = User.objects.get(id=user_id, is_active=True)
+            except User.DoesNotExist:
+                return Response({"error": "User not found."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Get TOTP secret (from encrypted UserMFA or user.mfa_secret fallback)
+        secret = ""
+        user_mfa = getattr(user, "mfa", None)
+        if user_mfa and user_mfa.encrypted_totp_secret:
+            secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret)
+        if not secret:
+            secret = user.mfa_secret
+
+        is_valid_totp = False
+        if secret:
+            is_valid_totp = verify_totp_with_anti_replay(user, secret, code)
+
+        is_valid_recovery = False
         if not is_valid_totp:
             # Check recovery code fallback
             is_valid_recovery = verify_and_consume_recovery_code(user, code)
 
         if not (is_valid_totp or is_valid_recovery):
+            if challenge:
+                challenge.attempts += 1
+                challenge.save(update_fields=["attempts"])
             return Response(
-                {"error": "Invalid verification code or recovery code."}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "Invalid verification code or recovery code."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Complete login
+        # Success - consume challenge and start session
+        if challenge:
+            challenge.consume()
         request.session.pop("pre_mfa_user_id", None)
         request.session.pop("pre_mfa_at", None)
         start_session(request, user, mfa_verified=True)
@@ -246,11 +284,92 @@ class MFAChallengeView(CsrfProtectedMixin, APIView):
         )
 
 
+class MFAVerifyView(MFAChallengeView):
+    """POST /api/v1/auth/mfa/verify/ alias for MFAChallengeView"""
+    pass
+
+
+class MFARecoveryLoginView(CsrfProtectedMixin, APIView):
+    """
+    POST /api/v1/auth/mfa/recovery/  {challenge_token, recovery_code}
+    """
+    permission_classes = [AllowAny]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        serializer = MFARecoverySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        challenge_token = serializer.validated_data.get("challenge_token")
+        recovery_code = serializer.validated_data["recovery_code"].strip()
+
+        challenge = None
+        user = None
+
+        if challenge_token:
+            challenge, err = get_valid_mfa_challenge(challenge_token)
+            if err:
+                return Response({"error": err}, status=status.HTTP_401_UNAUTHORIZED if "sign in again" in err else status.HTTP_400_BAD_REQUEST)
+            user = challenge.user
+        else:
+            user_id = request.session.get("pre_mfa_user_id")
+            pre_mfa_at = request.session.get("pre_mfa_at")
+            from django.utils import timezone
+            if not user_id or not pre_mfa_at or (timezone.now().timestamp() - pre_mfa_at) > 300:
+                request.session.pop("pre_mfa_user_id", None)
+                request.session.pop("pre_mfa_at", None)
+                return Response(
+                    {"error": "No active MFA login session found. Please log in again."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            try:
+                user = User.objects.get(id=user_id, is_active=True)
+            except User.DoesNotExist:
+                return Response({"error": "User not found."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not verify_and_consume_recovery_code(user, recovery_code):
+            if challenge:
+                challenge.attempts += 1
+                challenge.save(update_fields=["attempts"])
+            return Response(
+                {"error": "Invalid or already-used recovery code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if challenge:
+            challenge.consume()
+        request.session.pop("pre_mfa_user_id", None)
+        request.session.pop("pre_mfa_at", None)
+        start_session(request, user, mfa_verified=True)
+
+        return Response(
+            {
+                "message": "Recovery code accepted. Login successful.",
+                "recovery_code_used": True,
+                "user": UserSerializer(user).data,
+                "workspaces": workspaces_for(user),
+                "redirect": POST_AUTH_REDIRECT,
+            }
+        )
+
+
 class MFASetupView(APIView):
+    """
+    POST /api/v1/security/mfa/setup/ or POST /api/auth/mfa/setup/
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         secret = generate_totp_secret()
+        encrypted = encrypt_totp_secret(secret)
+
+        user_mfa, _ = UserMFA.objects.get_or_create(user=request.user)
+        user_mfa.encrypted_totp_secret = encrypted
+        user_mfa.is_enabled = False
+        user_mfa.confirmed_at = None
+        user_mfa.save()
+
         request.session["pending_mfa_secret"] = secret
 
         uri = get_totp_provisioning_uri(request.user, secret)
@@ -266,6 +385,9 @@ class MFASetupView(APIView):
 
 
 class MFAConfirmView(APIView):
+    """
+    POST /api/v1/security/mfa/confirm/ or POST /api/auth/mfa/confirm/
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -274,34 +396,140 @@ class MFAConfirmView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         secret = request.session.get("pending_mfa_secret")
+        user_mfa = getattr(request.user, "mfa", None)
+        if not secret and user_mfa and user_mfa.encrypted_totp_secret:
+            secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret)
+
         if not secret:
-            return Response({"error": "No pending MFA setup found."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No pending MFA setup found. Please start setup again."}, status=status.HTTP_400_BAD_REQUEST)
 
         code = serializer.validated_data["code"]
-        if not verify_totp_code(secret, code):
+        if not verify_totp_with_anti_replay(request.user, secret, code):
             return Response(
                 {"error": "Invalid verification code. Please check your authenticator app."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Persist MFA secret to user
+        from django.utils import timezone
+        if not user_mfa:
+            user_mfa, _ = UserMFA.objects.get_or_create(user=request.user)
+        user_mfa.encrypted_totp_secret = encrypt_totp_secret(secret)
+        user_mfa.is_enabled = True
+        user_mfa.confirmed_at = timezone.now()
+        user_mfa.save()
+
         user = request.user
         user.mfa_secret = secret
         user.mfa_enabled = True
         user.save(update_fields=["mfa_secret", "mfa_enabled"])
-        if "pending_mfa_secret" in request.session:
-            del request.session["pending_mfa_secret"]
+
+        request.session.pop("pending_mfa_secret", None)
         request.session["mfa_verified"] = True
 
-        # Generate recovery codes
+        # Generate 10 one-time recovery codes
         recovery_codes = generate_recovery_codes(user)
 
         return Response(
             {
-                "message": "MFA enabled successfully.",
+                "message": "Two-factor authentication enabled successfully.",
                 "recovery_codes": recovery_codes,
             }
         )
+
+
+class MFADisableView(APIView):
+    """
+    POST /api/v1/security/mfa/disable/
+    Requires user's current password plus either a valid TOTP code or recovery code.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MFADisableSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        password = serializer.validated_data["password"]
+        if not user.check_password(password):
+            return Response({"error": "Incorrect password."}, status=status.HTTP_400_BAD_REQUEST)
+
+        code = serializer.validated_data.get("code", "").strip()
+        user_mfa = getattr(user, "mfa", None)
+        secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret) if user_mfa and user_mfa.encrypted_totp_secret else user.mfa_secret
+
+        verified = False
+        if code:
+            if secret and verify_totp_code(secret, code):
+                verified = True
+            elif verify_and_consume_recovery_code(user, code):
+                verified = True
+
+        if not verified:
+            return Response({"error": "A valid 6-digit OTP or recovery code is required to disable 2FA."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Disable MFA
+        user.mfa_enabled = False
+        user.mfa_secret = ""
+        user.save(update_fields=["mfa_enabled", "mfa_secret"])
+
+        if user_mfa:
+            user_mfa.is_enabled = False
+            user_mfa.encrypted_totp_secret = ""
+            user_mfa.save(update_fields=["is_enabled", "encrypted_totp_secret"])
+
+        MFARecoveryCode.objects.filter(user=user).delete()
+        MFAChallenge.objects.filter(user=user).delete()
+        request.session["mfa_verified"] = False
+
+        return Response({"message": "Two-factor authentication has been disabled."})
+
+
+class MFAStatusView(APIView):
+    """
+    GET /api/v1/security/mfa/status/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        user_mfa = getattr(user, "mfa", None)
+        is_enabled = bool((user_mfa and user_mfa.is_enabled) or user.mfa_enabled)
+        is_pending = bool(not is_enabled and ((user_mfa and user_mfa.encrypted_totp_secret) or request.session.get("pending_mfa_secret")))
+        unused_codes = MFARecoveryCode.objects.filter(user=user, used_at__isnull=True).count()
+        confirmed_at = user_mfa.confirmed_at.isoformat() if (user_mfa and user_mfa.confirmed_at) else None
+
+        return Response(
+            {
+                "is_enabled": is_enabled,
+                "is_pending": is_pending,
+                "unused_recovery_codes_count": unused_codes,
+                "confirmed_at": confirmed_at,
+            }
+        )
+
+
+class MFARecoveryRegenerateView(APIView):
+    """
+    POST /api/v1/security/mfa/recovery-codes/regenerate/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = MFARecoveryRegenerateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if not user.mfa_enabled:
+            return Response({"error": "MFA is not enabled on this account."}, status=status.HTTP_400_BAD_REQUEST)
+
+        password = serializer.validated_data["password"]
+        if not user.check_password(password):
+            return Response({"error": "Incorrect password."}, status=status.HTTP_400_BAD_REQUEST)
+
+        codes = generate_recovery_codes(user)
+        return Response({"recovery_codes": codes, "message": "Recovery codes regenerated successfully."})
 
 
 class LogoutView(APIView):

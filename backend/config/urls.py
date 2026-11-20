@@ -36,6 +36,9 @@ urlpatterns = [
     ),
     # Modular Monolith API Routes
     re_path(r"^api/auth/?", include("apps.accounts.urls")),
+    re_path(r"^api/v1/auth/?", include("apps.accounts.urls")),
+    re_path(r"^api/v1/security/", include(("apps.accounts.urls", "apps.accounts"), namespace="v1-security")),
+    re_path(r"^api/security/", include(("apps.accounts.urls", "apps.accounts"), namespace="security")),
     path("api/w", WorkspaceListCreateView.as_view(), name="workspace-list-create-noslash"),
     path("api/w/", include("apps.tenancy.urls")),
     path("api/", include("apps.integrations.urls")),

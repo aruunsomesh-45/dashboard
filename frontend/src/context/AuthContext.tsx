@@ -168,6 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.mfa_required) {
           const next = new URLSearchParams(window.location.search).get("next");
           const qs = new URLSearchParams({ email: email.trim().toLowerCase() });
+          if ((data as any).challenge_token) {
+            qs.set("challenge_token", (data as any).challenge_token);
+          }
           if (next) qs.set("next", safeNextPath(next));
           router.push(`/mfa-challenge?${qs.toString()}`);
           return { error: null, mfaRequired: true };

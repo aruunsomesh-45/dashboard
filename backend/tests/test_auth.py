@@ -527,6 +527,8 @@ class TestSessions:
 SESSION_STATE_CHANGING = [
     ("post", MFA_SETUP, "MFASetupView"),
     ("post", MFA_CONFIRM, "MFAConfirmView"),
+    ("post", "/api/v1/security/mfa/disable/", "MFADisableView"),
+    ("post", "/api/v1/security/mfa/recovery-codes/regenerate/", "MFARecoveryRegenerateView"),
     ("post", LOGOUT, "LogoutView"),
     ("post", "/api/w/", "WorkspaceListCreateView"),
     ("post", "/api/w/invites/accept/", "InviteAcceptView"),
@@ -548,6 +550,8 @@ ANONYMOUS_STATE_CHANGING = [
     ("post", REGISTER, "RegisterView"),
     ("post", LOGIN, "LoginView"),
     ("post", CHALLENGE, "MFAChallengeView"),
+    ("post", "/api/v1/auth/mfa/verify/", "MFAVerifyView"),
+    ("post", "/api/v1/auth/mfa/recovery/", "MFARecoveryLoginView"),
     ("post", PASSWORD_RESET, "PasswordResetRequestView"),
     ("post", PASSWORD_RESET_CONFIRM, "PasswordResetConfirmView"),
 ]
