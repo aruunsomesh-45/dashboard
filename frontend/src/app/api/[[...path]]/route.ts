@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_BACKEND = "https://appropriations-aluminum-martial-guitar.trycloudflare.com";
+const DEFAULT_BACKEND = "https://motion-islamic-starting-window.trycloudflare.com";
 
 async function proxyRequest(req: NextRequest, { params }: { params: { path?: string[] } }) {
   const targetHost = process.env.BACKEND_URL || (process.env.VERCEL === "1" ? DEFAULT_BACKEND : "http://127.0.0.1:8001");
@@ -52,6 +52,17 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path?: str
         resHeaders.set(key, val);
       }
     });
+
+    if (backendRes.status >= 502) {
+      return NextResponse.json(
+        {
+          error: "Backend service unreachable via proxy tunnel.",
+          details: "The backend server or tunnel is currently unreachable.",
+          status: backendRes.status,
+        },
+        { status: 502 }
+      );
+    }
 
     const resBuffer = await backendRes.arrayBuffer();
     return new NextResponse(resBuffer, {

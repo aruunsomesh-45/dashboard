@@ -131,7 +131,9 @@ export async function apiFetchWithStatus<T>(
 
   if (!response.ok) {
     let errorDetail = "";
-    if (responseData && typeof responseData === "object") {
+    if (response.status >= 500 && !isExternal) {
+      errorDetail = "Backend server is temporarily unavailable. Please verify the service is running.";
+    } else if (responseData && typeof responseData === "object") {
       const rawError =
         responseData.error ||
         responseData.detail ||
@@ -149,15 +151,15 @@ export async function apiFetchWithStatus<T>(
       if (Array.isArray(errorDetail)) {
         errorDetail = errorDetail[0];
       }
-    } else if (typeof responseData === "string" && responseData.length < 200) {
-      errorDetail = responseData;
-    } else {
-      if (response.status === 500 && !isExternal) {
-        errorDetail =
-          "Backend connection failed (500). Please ensure Django is running on http://127.0.0.1:8001";
-      } else {
-        errorDetail = response.statusText;
+      if (/an error occurred with this application/i.test(errorDetail)) {
+        errorDetail = "Backend server is temporarily unavailable. Please verify the service is running.";
       }
+    } else if (typeof responseData === "string" && responseData.length < 200) {
+      errorDetail = /an error occurred with this application/i.test(responseData)
+        ? "Backend server is temporarily unavailable. Please verify the service is running."
+        : responseData;
+    } else {
+      errorDetail = response.statusText;
     }
     const fields =
       responseData && typeof responseData === "object" && responseData.fields && typeof responseData.fields === "object"

@@ -62,9 +62,18 @@ function toResult(err: unknown, fallback: string): AuthResult {
     if (err.status === 403 && /csrf/i.test(err.message)) {
       return { error: "Your security token expired. Please refresh the page and try again." };
     }
+    if (err.status >= 500) {
+      return { error: "Unable to reach the authentication service. Please verify the backend server is running." };
+    }
+    if (/an error occurred with this application/i.test(err.message)) {
+      return { error: "Authentication service is temporarily unavailable. Please try again in a moment." };
+    }
     return { error: err.message || fallback, fields: err.fields };
   }
   const msg = err instanceof Error ? err.message : "";
+  if (/an error occurred with this application/i.test(msg)) {
+    return { error: "Authentication service is temporarily unavailable. Please try again in a moment." };
+  }
   return { error: msg || fallback };
 }
 
