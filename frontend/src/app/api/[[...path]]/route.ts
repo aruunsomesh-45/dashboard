@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_BACKEND = "https://brooks-pharmaceuticals-interactive-nvidia.trycloudflare.com";
+const DEFAULT_BACKEND = "https://appropriations-aluminum-martial-guitar.trycloudflare.com";
 
 async function proxyRequest(req: NextRequest, { params }: { params: { path?: string[] } }) {
   const targetHost = process.env.BACKEND_URL || (process.env.VERCEL === "1" ? DEFAULT_BACKEND : "http://127.0.0.1:8001");

@@ -22,7 +22,7 @@ const nextConfig = {
   },
   ...(isExport ? {} : {
     async rewrites() {
-      const defaultPublicTunnel = "https://brooks-pharmaceuticals-interactive-nvidia.trycloudflare.com";
+      const defaultPublicTunnel = "https://appropriations-aluminum-martial-guitar.trycloudflare.com";
       const backendUrl = process.env.BACKEND_URL || (process.env.VERCEL === "1" ? defaultPublicTunnel : "http://127.0.0.1:8001");
       // When deployed on Vercel without an external backend URL, avoid rewriting to private localhost
       if (process.env.VERCEL === "1" && (!backendUrl || backendUrl.includes("127.0.0.1") || backendUrl.includes("localhost"))) {

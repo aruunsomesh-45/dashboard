@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://brooks-pharmaceuticals-interactive-nvidia.trycloudflare.com/api/:path*"
+      "destination": "https://appropriations-aluminum-martial-guitar.trycloudflare.com/api/:path*"
     }
   ]
 }
