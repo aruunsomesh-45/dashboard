@@ -316,23 +316,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const origin = getAppOrigin();
       const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
       const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data: oauthData, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${origin}/auth/callback${nextQuery}`,
           queryParams: { prompt: "select_account" },
+          skipBrowserRedirect: true,
         },
       });
-      if (error) {
-        if (error.message?.includes("Unsupported provider") || (error as any).error_code === "validation_failed") {
-          return {
-            error: new Error(
-              "Google Sign-In is not enabled yet in your Firebase or Supabase dashboard. Please sign in with Email & Password or use the 1-Click Dev Login below."
-            ),
-          };
-        }
-        return { error: new Error(friendlyAuthError(error)) };
+
+      if (oauthError) {
+        return {
+          error: new Error(
+            "Google Sign-In is not enabled yet in your Supabase project (Authentication -> Providers -> Google). Please sign in with Email & Password or Email OTP."
+          ),
+        };
       }
+
+      if (oauthData?.url) {
+        try {
+          const probe = await fetch(oauthData.url);
+          if (!probe.ok) {
+            const errJson = await probe.json().catch(() => null);
+            if (errJson?.msg?.includes("not enabled") || errJson?.error_code === "validation_failed") {
+              return {
+                error: new Error(
+                  "Google Sign-In is not enabled yet in your Supabase project (Authentication -> Providers -> Google). Please sign in using Email OTP or Email & Password below."
+                ),
+              };
+            }
+          }
+        } catch {
+          // Non-fatal probe fallback
+        }
+        window.location.href = oauthData.url;
+        return { error: null };
+      }
+
       return { error: null };
     } catch (err: any) {
       return { error: err };

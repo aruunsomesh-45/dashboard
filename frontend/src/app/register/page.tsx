@@ -43,18 +43,9 @@ export default function RegisterPage() {
   const handleGoogleSignUp = async () => {
     setError(null);
     setIsLoading(true);
-    const origin = getAppOrigin();
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${origin}/auth/callback`,
-        queryParams: {
-          prompt: "select_account",
-        },
-      },
-    });
+    const { error: oauthError } = await signInWithGoogle();
     if (oauthError) {
-      setError(friendlyAuthError(oauthError));
+      setError(oauthError.message || friendlyAuthError(oauthError));
       setIsLoading(false);
     }
   };
