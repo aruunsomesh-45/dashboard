@@ -3,7 +3,9 @@
 import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { firebaseAuth } from "@/lib/firebaseClient";
 import { useAuth } from "@/context/AuthContext";
+import { apiFetch } from "@/lib/api";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 const PENDING_KEY = "app_pending_invite";
@@ -11,7 +13,7 @@ const PENDING_KEY = "app_pending_invite";
 function AcceptInviteContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const { refreshAuth } = useAuth();
+  const { user, refreshAuth } = useAuth();
   const [state, setState] = useState<"working" | "done" | "error">("working");
   const started = useRef(false);
 
@@ -26,29 +28,45 @@ function AcceptInviteContent() {
         setState("error");
         return;
       }
-      // Strip the token from the address bar / history right away.
       if (urlToken) window.history.replaceState({}, "", "/invites/accept");
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Stash across the login redirect, then come back here.
+      // Check if user is logged in
+      const activeUser = user || firebaseAuth.currentUser;
+      if (!activeUser) {
         sessionStorage.setItem(PENDING_KEY, token);
         router.replace("/login?next=" + encodeURIComponent("/invites/accept"));
         return;
       }
 
-      const { error } = await supabase.rpc("accept_invite", { p_token: token });
+      // Try Django backend first
+      let success = false;
+      try {
+        await apiFetch("/api/w/invites/accept/", {
+          method: "POST",
+          body: JSON.stringify({ token }),
+        });
+        success = true;
+      } catch (backendErr) {
+        // Fallback to database RPC
+        try {
+          const { error } = await supabase.rpc("accept_invite", { p_token: token });
+          if (!error) success = true;
+        } catch {}
+      }
+
       sessionStorage.removeItem(PENDING_KEY);
-      if (error) {
+
+      if (!success) {
         setState("error");
         return;
       }
+
       await refreshAuth();
       setState("done");
       setTimeout(() => router.replace("/"), 1200);
     }
     run();
-  }, [params, router, refreshAuth]);
+  }, [params, router, user, refreshAuth]);
 
   return (
     <div className="min-h-screen bg-ivory-100 flex items-center justify-center p-4 font-sans">
@@ -71,7 +89,6 @@ function AcceptInviteContent() {
             <h2 className="text-sm font-bold text-charcoal-900">This invitation can&apos;t be used</h2>
             <p className="text-xs text-charcoal-500 leading-relaxed">
               It may have expired, been sent to a different email address, or already been used. If you signed in with the invited address, you were added automatically — check your workspace list.
-              Sign in with the address that was invited, or ask your admin for a new link.
             </p>
             <button
               onClick={() => router.replace("/")}
@@ -88,7 +105,16 @@ function AcceptInviteContent() {
 
 export default function AcceptInvitePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-ivory-100 flex items-center justify-center p-4 font-sans">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-ivory-300 p-8 shadow-sm text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-terracotta-500 animate-spin mx-auto" />
+            <h2 className="text-sm font-bold text-charcoal-900">Loading invitation...</h2>
+          </div>
+        </div>
+      }
+    >
       <AcceptInviteContent />
     </Suspense>
   );

@@ -150,7 +150,6 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "apps.accounts.firebase_auth.FirebaseAuthentication",
         "rest_framework.authentication.SessionAuthentication",
-        "apps.accounts.authentication.SupabaseJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

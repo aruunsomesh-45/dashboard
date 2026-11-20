@@ -1,45 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabaseClient";
 import { friendlyAuthError } from "@/lib/authErrors";
-import { Building2, Mail, User as UserIcon, ArrowRight, Loader2, KeyRound, CheckCircle2, RotateCw, AlertCircle } from "lucide-react";
-
-const getAppOrigin = (): string => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
-  }
-  if (typeof window !== "undefined" && window.location.origin) {
-    return window.location.origin;
-  }
-  return "https://125east-dashboard.vercel.app";
-};
+import { Building2, Mail, User as UserIcon, Lock, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [orgName, setOrgName] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpToken, setOtpToken] = useState("");
-  const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const router = useRouter();
-  const { signInWithGoogle, verifyOtp } = useAuth();
+  const { signInWithGoogle, signUpWithEmail } = useAuth();
 
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
-
-  // Google OAuth with metadata
+  // Google OAuth sign up
   const handleGoogleSignUp = async () => {
     setError(null);
     setIsLoading(true);
@@ -50,58 +27,26 @@ export default function RegisterPage() {
     }
   };
 
-  // Send Registration OTP
-  const handleSendOtp = async (e: React.FormEvent) => {
+  // Email + Password Workspace Registration
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !orgName) {
-      setError("Please provide your work email and brand / organization name.");
+    if (!email || !password || !orgName) {
+      setError("Please fill in your email, password, and organization name.");
       return;
     }
-
-    setError(null);
-    setSuccessMsg(null);
-    setIsLoading(true);
-
-    const origin = getAppOrigin();
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: `${origin}/auth/callback`,
-        shouldCreateUser: true,
-        data: {
-          full_name: fullName.trim(),
-          organization_name: orgName.trim(),
-        },
-      },
-    });
-
-    setIsLoading(false);
-
-    if (otpError) {
-      setError(friendlyAuthError(otpError));
-    } else {
-      setOtpSent(true);
-      setCountdown(60);
-      setSuccessMsg(`We sent a 6-digit confirmation code to ${email}.`);
-    }
-  };
-
-  // Verify OTP
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpToken || otpToken.trim().length < 6) {
-      setError("Please enter the complete 6-digit verification code.");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long.");
       return;
     }
 
     setError(null);
     setIsLoading(true);
 
-    const { error: verifyError } = await verifyOtp(email, otpToken);
+    const { error: regError } = await signUpWithEmail(email, password, fullName, orgName);
     setIsLoading(false);
 
-    if (verifyError) {
-      setError(verifyError.message || "Invalid or expired code.");
+    if (regError) {
+      setError(friendlyAuthError(regError));
     }
   };
 
@@ -128,13 +73,6 @@ export default function RegisterPage() {
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-start space-x-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-600" />
             <span>{error}</span>
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-start space-x-2">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
-            <span>{successMsg}</span>
           </div>
         )}
 
@@ -175,147 +113,93 @@ export default function RegisterPage() {
           </span>
         </div>
 
-        {!otpSent ? (
-          <form onSubmit={handleSendOtp} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                Full Name
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Rahul Mehta"
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500"
-                />
-                <UserIcon className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+        <form onSubmit={handleRegister} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Full Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Rahul Mehta"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+              />
+              <UserIcon className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                Organization / Brand Name
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="e.g. Acme Apparel"
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500"
-                />
-                <Building2 className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Organization / Brand Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="e.g. Acme Apparel"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+              />
+              <Building2 className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1">
-                Work Email Address
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="founder@brand.com"
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500"
-                />
-                <Mail className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Work Email Address
+            </label>
+            <div className="relative">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="founder@brand.com"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+              />
+              <Mail className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isLoading || !email || !orgName}
-              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-forest-900 hover:bg-forest-800 text-ivory-100 text-xs font-bold transition-colors shadow-sm disabled:opacity-50 mt-2"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Creating Workspace...</span>
-                </>
-              ) : (
-                <>
-                  <span>Create Workspace & Send Code</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          /* Step 2: Verification */
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-charcoal-700">
-                  Enter 6-Digit Code
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOtpSent(false);
-                    setOtpToken("");
-                    setError(null);
-                  }}
-                  className="text-[11px] text-terracotta-600 hover:underline"
-                >
-                  Edit Details
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={otpToken}
-                  onChange={(e) => setOtpToken(e.target.value.replace(/\D/g, ""))}
-                  placeholder="123456"
-                  autoFocus
-                  className="w-full text-center tracking-[0.5em] text-lg font-mono py-2 rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 font-bold"
-                />
-                <KeyRound className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-charcoal-500 mt-1.5">
-                <span>Code expires in 10 minutes</span>
-                {countdown > 0 ? (
-                  <span className="text-charcoal-400">Resend in {countdown}s</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={isLoading}
-                    className="text-terracotta-600 font-medium hover:underline flex items-center space-x-1"
-                  >
-                    <RotateCw className="w-3 h-3" />
-                    <span>Resend Code</span>
-                  </button>
-                )}
-              </div>
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-ivory-300 bg-white focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 text-charcoal-900"
+              />
+              <Lock className="w-4 h-4 text-charcoal-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+            <p className="text-[10px] text-charcoal-400 mt-1">Minimum 6 characters</p>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isLoading || otpToken.length < 6}
-              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-forest-900 hover:bg-forest-800 text-ivory-100 text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Finalizing Workspace...</span>
-                </>
-              ) : (
-                <>
-                  <span>Verify & Launch Cockpit</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            disabled={isLoading || !email || !password || !orgName}
+            className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-forest-900 hover:bg-forest-800 text-ivory-100 text-xs font-bold transition-colors shadow-sm disabled:opacity-50 mt-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Creating Workspace...</span>
+              </>
+            ) : (
+              <>
+                <span>Create Workspace & Account</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
 
         {/* Footer */}
         <div className="pt-2 border-t border-ivory-200 text-center text-xs text-charcoal-500">

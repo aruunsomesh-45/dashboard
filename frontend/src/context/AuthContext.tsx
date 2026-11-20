@@ -8,6 +8,7 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  updateProfile,
   signOut as firebaseSignOut,
   onIdTokenChanged,
   User as FirebaseUser,
@@ -28,23 +29,13 @@ interface AuthContextType {
   refreshAuth: () => Promise<void>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUpWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUpWithEmail: (email: string, password: string, fullName?: string, orgName?: string) => Promise<{ error: Error | null }>;
   signInWithOtp: (email: string) => Promise<{ error: Error | null }>;
   verifyOtp: (email: string, token: string) => Promise<{ error: Error | null }>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const getAppOrigin = (): string => {
-  if (process.env.NEXT_PUBLIC_SITE_URL) {
-    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
-  }
-  if (typeof window !== "undefined" && window.location.origin) {
-    return window.location.origin;
-  }
-  return "https://125east-dashboard.vercel.app";
-};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -55,18 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const router = useRouter();
   const pathname = usePathname();
-  const explicitLogout = useRef(false);
+
   const isRefreshingRef = useRef(false);
+  const explicitLogout = useRef(false);
+
+  // Preserve workspace and brand selections across reloads
   const currentWorkspaceRef = useRef<Workspace | null>(null);
+  currentWorkspaceRef.current = currentWorkspace;
   const currentBrandRef = useRef<Brand | null>(null);
-
-  useEffect(() => {
-    currentWorkspaceRef.current = currentWorkspace;
-  }, [currentWorkspace]);
-
-  useEffect(() => {
-    currentBrandRef.current = currentBrand;
-  }, [currentBrand]);
+  currentBrandRef.current = currentBrand;
 
   const isPublicRoute =
     pathname === "/login" ||
@@ -103,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fallback to direct DB query if Django me endpoint was unreachable
       }
 
+      // 2. Fetch directly from database
       const { data: profile } = await supabase
         .from("accounts_user")
         .select("id, email, first_name, last_name, mfa_enabled, created_at")
@@ -119,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       setUser(resolvedUser);
 
-      // 2. Fetch memberships and workspaces
+      // 3. Fetch memberships and workspaces
       const { data: memberRows, error: memberErr } = await supabase
         .from("tenancy_workspacemember")
         .select(`
@@ -177,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isRefreshingRef.current) return;
     isRefreshingRef.current = true;
     try {
-      // Check Firebase auth first
+      // 1. Check Firebase Auth session
       if (firebaseAuth.currentUser) {
         const token = await firebaseAuth.currentUser.getIdToken();
         setAuthBearerToken(token);
@@ -185,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Check Django session /api/auth/me
+      // 2. Check Django session /api/auth/me
       try {
         const meData = await apiFetch<any>("/api/auth/me");
         if (meData?.user) {
@@ -207,13 +196,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
 
-      // Check Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserData(session.user.id, session.user.email || "");
-        return;
-      }
-
       setUser(null);
       setWorkspaces([]);
       setCurrentWorkspace(null);
@@ -234,137 +216,101 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     ensureCsrf();
-    refreshAuth();
 
-    // Listen to Firebase ID token changes
+    // Listen to Firebase ID token changes (authoritative auth state)
     const unsubscribeFirebase = onIdTokenChanged(firebaseAuth, async (fbUser: FirebaseUser | null) => {
       if (fbUser) {
-        const token = await fbUser.getIdToken();
-        setAuthBearerToken(token);
-        await loadUserData(fbUser.uid, fbUser.email || "");
-        if (pathname === "/login" || pathname === "/register") {
-          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-          router.push(next);
+        try {
+          const token = await fbUser.getIdToken();
+          setAuthBearerToken(token);
+          await loadUserData(fbUser.uid, fbUser.email || "");
+          if (pathname === "/login" || pathname === "/register") {
+            const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+            router.push(next);
+          }
+        } catch (e) {
+          console.warn("Failed fetching Firebase token:", e);
         }
       } else {
         setAuthBearerToken(null);
-      }
-    });
-
-    // Listen to Supabase Auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
-          const uid = session.user.id;
-          const mail = session.user.email || "";
-          setTimeout(async () => {
-            await loadUserData(uid, mail);
-            if (pathname === "/login" || pathname === "/register") {
-              const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-              router.push(next);
-            }
-          }, 0);
-        } else if (event === "SIGNED_OUT") {
+        if (explicitLogout.current) {
           setUser(null);
           setWorkspaces([]);
           setCurrentWorkspace(null);
           setCurrentBrand(null);
           if (!isPublicRoute) {
-            router.replace(loginUrlFor(pathname, explicitLogout.current ? undefined : "expired"));
-            explicitLogout.current = false;
+            router.replace(loginUrlFor(pathname, "expired"));
           }
+          explicitLogout.current = false;
+        } else {
+          await refreshAuth();
         }
       }
-    );
+      setIsLoading(false);
+    });
 
     return () => {
       unsubscribeFirebase();
-      subscription.unsubscribe();
     };
-  }, []); // Only runs ONCE on mount!
+  }, []);
 
-  // Firebase / Google OAuth Sign-In
+  // Firebase Google OAuth Sign-In (Pure Firebase, no Supabase redirect)
   const signInWithGoogle = async () => {
     try {
+      const cred = await signInWithPopup(firebaseAuth, googleAuthProvider);
+      if (cred.user) {
+        const token = await cred.user.getIdToken();
+        setAuthBearerToken(token);
+        await loadUserData(cred.user.uid, cred.user.email || "");
+        const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+        router.push(next);
+        return { error: null };
+      }
+      return { error: null };
+    } catch (fbErr: any) {
+      if (fbErr?.code === "auth/popup-closed-by-user") {
+        return { error: null };
+      }
+      if (fbErr?.code === "auth/unauthorized-domain") {
+        const currentHost = typeof window !== "undefined" ? window.location.hostname : "this domain";
+        return {
+          error: new Error(
+            `'${currentHost}' is not in Firebase authorized domains. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains.`
+          ),
+        };
+      }
+      return { error: new Error(friendlyAuthError(fbErr)) };
+    }
+  };
+
+  // Email/Password Sign-In (Firebase Auth primary + Django fallback)
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      // 1. Firebase Email/Password Sign-In
       try {
-        const cred = await signInWithPopup(firebaseAuth, googleAuthProvider);
+        const cred = await signInWithEmailAndPassword(firebaseAuth, cleanEmail, password);
         if (cred.user) {
+          const token = await cred.user.getIdToken();
+          setAuthBearerToken(token);
           await loadUserData(cred.user.uid, cred.user.email || "");
           const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
           router.push(next);
           return { error: null };
         }
       } catch (fbErr: any) {
-        if (fbErr?.code === "auth/popup-closed-by-user") {
-          return { error: null }; // User closed popup intentionally
-        }
-        if (fbErr?.code === "auth/unauthorized-domain") {
-          const currentHost = typeof window !== "undefined" ? window.location.hostname : "this domain";
-          return {
-            error: new Error(
-              `'${currentHost}' is not in Firebase authorized domains. Please add '${currentHost}' in Firebase Console -> Authentication -> Settings -> Authorized domains.`
-            ),
-          };
-        }
-        console.warn("Firebase Google popup error:", fbErr);
-        if (fbErr?.code && !fbErr.message?.includes("API key not valid")) {
+        // If not credentials error (e.g. network/rate limit), abort early
+        if (
+          fbErr?.code !== "auth/user-not-found" &&
+          fbErr?.code !== "auth/invalid-credential" &&
+          fbErr?.code !== "auth/wrong-password"
+        ) {
           return { error: new Error(friendlyAuthError(fbErr)) };
         }
       }
 
-      // Fallback to Supabase OAuth if Firebase not configured
-      const origin = getAppOrigin();
-      const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-      const nextQuery = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
-      const { data: oauthData, error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${origin}/auth/callback${nextQuery}`,
-          queryParams: { prompt: "select_account" },
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (oauthError) {
-        return {
-          error: new Error(
-            "Google Sign-In is not enabled yet in your Supabase project (Authentication -> Providers -> Google). Please sign in with Email & Password or Email OTP."
-          ),
-        };
-      }
-
-      if (oauthData?.url) {
-        try {
-          const probe = await fetch(oauthData.url);
-          if (!probe.ok) {
-            const errJson = await probe.json().catch(() => null);
-            if (errJson?.msg?.includes("not enabled") || errJson?.error_code === "validation_failed") {
-              return {
-                error: new Error(
-                  "Google Sign-In is not enabled yet in your Supabase project (Authentication -> Providers -> Google). Please sign in using Email OTP or Email & Password below."
-                ),
-              };
-            }
-          }
-        } catch {
-          // Non-fatal probe fallback
-        }
-        window.location.href = oauthData.url;
-        return { error: null };
-      }
-
-      return { error: null };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
-  // Email/Password Sign-In (Unified Django Backend + Supabase + Firebase sync)
-  const signInWithEmail = async (email: string, password: string) => {
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-
-      // 1. Authenticate with Django Backend directly (if available)
+      // 2. Fallback to Django backend password authentication
       try {
         await ensureCsrf();
         const res = await apiFetch<any>("/api/auth/login/", {
@@ -392,53 +338,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { error: null };
         }
       } catch (backendErr: any) {
-        console.warn("Backend password login error, trying Supabase fallback:", backendErr);
+        console.warn("Backend login check:", backendErr);
       }
 
-      // 2. Supabase Email/Password Direct Sign-In (Works on Vercel deployment)
-      try {
-        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-
-        if (!supaErr && supaData?.user) {
-          await loadUserData(supaData.user.id, supaData.user.email || "");
-          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-          router.push(next);
-          return { error: null };
-        }
-        if (supaErr && !supaErr.message.toLowerCase().includes("invalid login credentials")) {
-          console.warn("Supabase auth notice:", supaErr.message);
-        }
-      } catch (supaEx: any) {
-        console.warn("Supabase login exception:", supaEx);
-      }
-
-      // 3. Firebase Email/Password Fallback
-      try {
-        const cred = await signInWithEmailAndPassword(firebaseAuth, cleanEmail, password);
-        if (cred.user) {
-          await loadUserData(cred.user.uid, cred.user.email || "");
-          const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
-          router.push(next);
-          return { error: null };
-        }
-      } catch (fbErr: any) {
-        return { error: new Error(friendlyAuthError(fbErr)) };
-      }
-
-      return { error: new Error("Invalid email or password. Please verify your credentials or use Email OTP.") };
+      return { error: new Error("Invalid email or password.") };
     } catch (err: any) {
       return { error: new Error(friendlyAuthError(err)) };
     }
   };
 
   // Firebase Email/Password Sign-Up
-  const signUpWithEmail = async (email: string, password: string) => {
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    fullName?: string,
+    orgName?: string
+  ) => {
     try {
-      const cred = await createUserWithEmailAndPassword(firebaseAuth, email.trim().toLowerCase(), password);
+      const cleanEmail = email.trim().toLowerCase();
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, cleanEmail, password);
       if (cred.user) {
+        if (fullName && fullName.trim()) {
+          try {
+            await updateProfile(cred.user, { displayName: fullName.trim() });
+          } catch {}
+        }
+        const token = await cred.user.getIdToken();
+        setAuthBearerToken(token);
+
+        // If organization name provided, create workspace
+        if (orgName && orgName.trim()) {
+          try {
+            await apiFetch("/api/w/", {
+              method: "POST",
+              body: JSON.stringify({ name: orgName.trim() }),
+            });
+          } catch (wsErr) {
+            console.warn("Workspace creation on sign up:", wsErr);
+          }
+        }
+
         await loadUserData(cred.user.uid, cred.user.email || "");
         const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
         router.push(next);
@@ -450,45 +389,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Email OTP Sign-In Request (Supabase Passwordless)
-  const signInWithOtp = async (email: string) => {
-    try {
-      const origin = getAppOrigin();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          emailRedirectTo: `${origin}/auth/callback`,
-          shouldCreateUser: true,
-        },
-      });
-      return { error: error ? new Error(friendlyAuthError(error)) : null };
-    } catch (err: any) {
-      return { error: new Error(friendlyAuthError(err)) };
-    }
+  // Backward-compatibility stubs for OTP
+  const signInWithOtp = async (_email: string) => {
+    return {
+      error: new Error("Email OTP sign-in has been upgraded to Firebase Authentication. Please sign in with your Email & Password or Google above."),
+    };
   };
 
-  // Email OTP Verification (Supabase Passwordless)
-  const verifyOtp = async (email: string, token: string) => {
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: token.trim(),
-        type: "email",
-      });
-
-      if (error) {
-        return { error: new Error(friendlyAuthError(error)) };
-      }
-
-      if (data.session?.user) {
-        await loadUserData(data.session.user.id, data.session.user.email || "");
-        router.push(safeNextPath(new URLSearchParams(window.location.search).get("next")));
-      }
-
-      return { error: null };
-    } catch (err: any) {
-      return { error: new Error(friendlyAuthError(err)) };
-    }
+  const verifyOtp = async (_email: string, _token: string) => {
+    return {
+      error: new Error("Email OTP verification has been upgraded to Firebase Authentication. Please sign in with your Email & Password or Google."),
+    };
   };
 
   // Logout
@@ -498,11 +409,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await firebaseSignOut(firebaseAuth);
     } catch {}
     try {
-      await supabase.auth.signOut();
-    } catch {}
-    try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {}
+    setAuthBearerToken(null);
     setUser(null);
     setWorkspaces([]);
     setCurrentWorkspace(null);
