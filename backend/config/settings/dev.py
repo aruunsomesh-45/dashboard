@@ -1,6 +1,6 @@
 from .base import *  # noqa: F401,F403
 
-DEBUG = True
+DEBUG = env.bool("DEBUG", default=False)
 
 # Throwaway key for local development only. Production (prod.py) refuses to boot without a real one.
 if not SECRET_KEY:  # noqa: F405
