@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-11-20T18:57:27.409Z",
+  "test_run_at": "2026-11-20T18:52:28.166Z",
+  "totals": {
+    "total": 164,
+    "passed": 160,
+    "failed": 0,
+    "skipped": 4
+  },
+  "components": [
+    {
+      "name": "Unit: crypto/logger/signatures/mappers/http",
+      "total": 50,
+      "passed": 50,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 205,
+      "failures": []
+    },
+    {
+      "name": "Database schema + constraints",
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 4863,
+      "failures": []
+    },
+    {
+      "name": "Workspace isolation (RLS)",
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 178,
+      "failures": []
+    },
+    {
+      "name": "Shopify sync (mocked API)",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 651,
+      "failures": []
+    },
+    {
+      "name": "Razorpay sync (mocked API)",
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 784,
+      "failures": []
+    },
+    {
+      "name": "Meta Ads sync (mocked API)",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 240,
+      "failures": []
+    },
+    {
+      "name": "Instagram sync (mocked API)",
+      "total": 3,
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 91,
+      "failures": []
+    },
+    {
+      "name": "test-connection (mocked API)",
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 71,
+      "failures": []
+    },
+    {
+      "name": "Shopify webhook",
+      "total": 14,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 98,
+      "failures": []
+    },
+    {
+      "name": "Razorpay webhook",
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 162,
+      "failures": []
+    },
+    {
+      "name": "Security",
+      "total": 29,
+      "passed": 29,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 357,
+      "failures": []
+    },
+    {
+      "name": "E2E workflows (service-level)",
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "ms": 155,
+      "failures": []
+    },
+    {
+      "name": "LIVE third-party APIs",
+      "total": 4,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 4,
+      "ms": 0,
+      "failures": []
+    }
+  ],
+  "smoke": {
+    "checks": [
+      {
+        "component": "Supabase Auth",
+        "check": "GET /auth/v1/health",
+        "verdict": "PASS",
+        "http": 200,
+        "ms": 391,
+        "detail": "GoTrue"
+      },
+      {
+        "component": "Supabase REST",
+        "check": "anon read of tenancy_brand is denied/empty",
+        "verdict": "PASS",
+        "http": 401,
+        "ms": 110,
+        "detail": "code 42501"
+      },
+      {
+        "component": "Schema contract",
+        "check": "commerce_order",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 1104,
+        "detail": "17 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "commerce_customer",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 537,
+        "detail": "10 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "commerce_orderline",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 322,
+        "detail": "6 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "commerce_paymentattempt",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 675,
+        "detail": "12 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "analytics_factadsdaily",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 352,
+        "detail": "8 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "integrations_integration",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 477,
+        "detail": "9 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "integrations_syncrun",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 675,
+        "detail": "11 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "integrations_webhookevent",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 407,
+        "detail": "9 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "tenancy_workspacemember",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 146,
+        "detail": "3 columns present"
+      },
+      {
+        "component": "Schema contract",
+        "check": "tenancy_brand",
+        "verdict": "PASS",
+        "http": null,
+        "ms": 158,
+        "detail": "2 columns present"
+      },
+      {
+        "component": "test-connection",
+        "check": "deployment + auth enforcement",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 2,
+        "detail": "no-auth=401 anon-key-as-user=401 preflight=200 (Authentication required: missing Bearer token)"
+      },
+      {
+        "component": "shopify-sync",
+        "check": "deployment + auth enforcement",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 2,
+        "detail": "no-auth=401 anon-key-as-user=401 preflight=200 (Authentication required: missing Bearer token)"
+      },
+      {
+        "component": "razorpay-sync",
+        "check": "deployment + auth enforcement",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 2,
+        "detail": "no-auth=401 anon-key-as-user=401 preflight=200 (Authentication required: missing Bearer token)"
+      },
+      {
+        "component": "meta-ads-sync",
+        "check": "deployment + auth enforcement",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 2,
+        "detail": "no-auth=401 anon-key-as-user=401 preflight=200 (Authentication required: missing Bearer token)"
+      },
+      {
+        "component": "instagram-sync",
+        "check": "deployment + auth enforcement",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 1,
+        "detail": "no-auth=401 anon-key-as-user=401 preflight=200 (Authentication required: missing Bearer token)"
+      },
+      {
+        "component": "webhook-shopify",
+        "check": "reachable without JWT + rejects unsigned",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 3,
+        "detail": "unsigned=401 bad-brand=400 (Missing webhook signature)"
+      },
+      {
+        "component": "webhook-razorpay",
+        "check": "reachable without JWT + rejects unsigned",
+        "verdict": "DEPLOYED_AUTH_OK",
+        "http": 401,
+        "ms": 1,
+        "detail": "unsigned=401 bad-brand=400 (Missing webhook signature)"
+      }
+    ],
+    "startedAt": "2026-11-20T18:57:27.323Z",
+    "target": "ybyroxyofqfpozvfedhc.supabase.co"
+  }
+}

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ModuleGuard } from "@/components/auth/ModuleGuard";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { RazorpayLogo } from "@/components/icons/AppLogos";
@@ -103,7 +104,8 @@ export default function PaymentsPage() {
 
   return (
     <DashboardShell>
-      <div className="space-y-6">
+      <ModuleGuard moduleKey="razorpay" moduleName="Razorpay Payments">
+        <div className="space-y-6">
         <div className="flex items-center justify-between pb-1">
           <div>
             <h2 className="text-xl font-bold text-charcoal-900 tracking-tight flex items-center space-x-2.5">
@@ -263,7 +265,8 @@ export default function PaymentsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </ModuleGuard>
     </DashboardShell>
   );
 }

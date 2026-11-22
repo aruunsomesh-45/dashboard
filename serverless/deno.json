@@ -1,0 +1,12 @@
+{
+  "nodeModulesDir": "none",
+  "tasks": {
+    "test": "deno test -A tests/unit tests/db",
+    "test:unit": "deno test -A tests/unit",
+    "test:db": "deno test -A tests/db",
+    "test:live": "deno test -A tests/live",
+    "smoke": "deno run -A tests/smoke/smoke.ts",
+    "report": "deno test -A tests/unit tests/db tests/live --junit-path=tests/results/junit.xml ; deno run -A tests/smoke/smoke.ts ; deno run -A tests/results/summarize.ts",
+    "gateway": "deno run -A local-gateway.ts"
+  }
+}

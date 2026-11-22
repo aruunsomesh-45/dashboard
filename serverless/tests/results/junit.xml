@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="deno test" tests="174" failures="0" errors="0" time="56.612">
+    <testsuite name="./tests/db/e2e_workflows.test.ts" tests="12" disabled="0" errors="0" failures="0">
+        <testcase name="E2E workflows" classname="./tests/db/e2e_workflows.test.ts" time="2.109" line="19" col="6">
+        </testcase>
+        <testcase name="E2E workflows &gt; A1-A3 register -&gt; authenticate -&gt; workspace auto-provisioned" classname="./tests/db/e2e_workflows.test.ts" time="0.011" line="25" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; A4-A6 session verified; protected data blocked without/with wrong session" classname="./tests/db/e2e_workflows.test.ts" time="0.009" line="31" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; B: connect Shopify -&gt; test creds -&gt; sync -&gt; query saved records" classname="./tests/db/e2e_workflows.test.ts" time="0.055" line="38" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; C: Razorpay creds -&gt; fetch payments -&gt; normalise -&gt; persisted values correct" classname="./tests/db/e2e_workflows.test.ts" time="0.021" line="55" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; D: signed Shopify webhook -&gt; persisted -&gt; resend -&gt; duplicate" classname="./tests/db/e2e_workflows.test.ts" time="0.022" line="68" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; D: signed Razorpay webhook -&gt; persisted -&gt; resend -&gt; duplicate" classname="./tests/db/e2e_workflows.test.ts" time="0.012" line="76" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; E: dashboard totals equal an independent SQL aggregate over the same records" classname="./tests/db/e2e_workflows.test.ts" time="0.010" line="86" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; E: date filtering - widening the window includes the 100-day-old order" classname="./tests/db/e2e_workflows.test.ts" time="0.003" line="103" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; E: workspace isolation - another tenant cannot query this dashboard" classname="./tests/db/e2e_workflows.test.ts" time="0.006" line="108" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; E: empty state - a brand with no data returns zeros, not nulls/errors" classname="./tests/db/e2e_workflows.test.ts" time="0.004" line="114" col="11">
+        </testcase>
+        <testcase name="E2E workflows &gt; E: error state - unauthenticated dashboard query is rejected" classname="./tests/db/e2e_workflows.test.ts" time="0.002" line="120" col="11">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/db/functions_sync.test.ts" tests="35" disabled="0" errors="0" failures="0">
+        <testcase name="Shopify sync" classname="./tests/db/functions_sync.test.ts" time="6.253" line="25" col="6">
+        </testcase>
+        <testcase name="Razorpay sync" classname="./tests/db/functions_sync.test.ts" time="5.598" line="141" col="6">
+        </testcase>
+        <testcase name="Meta Ads sync" classname="./tests/db/functions_sync.test.ts" time="4.852" line="188" col="6">
+        </testcase>
+        <testcase name="Instagram sync" classname="./tests/db/functions_sync.test.ts" time="4.783" line="247" col="6">
+        </testcase>
+        <testcase name="test-connection" classname="./tests/db/functions_sync.test.ts" time="4.793" line="284" col="6">
+        </testcase>
+        <testcase name="Shopify sync &gt; fetches 2 pages via Link header, persists orders, customers, lines, sync run" classname="./tests/db/functions_sync.test.ts" time="0.190" line="30" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; re-sync is idempotent: no duplicate orders/lines, counts as updates" classname="./tests/db/functions_sync.test.ts" time="0.085" line="59" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; empty API response -&gt; success with 0 records" classname="./tests/db/functions_sync.test.ts" time="0.039" line="70" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; one bad order -&gt; partial (others saved, failure counted, not silently &apos;success&apos;)" classname="./tests/db/functions_sync.test.ts" time="0.057" line="77" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; expired/invalid token (401) -&gt; 502, integration marked error, sync run failed" classname="./tests/db/functions_sync.test.ts" time="0.040" line="85" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; 429 rate limit -&gt; retried after Retry-After, then succeeds" classname="./tests/db/functions_sync.test.ts" time="0.062" line="97" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; malformed upstream JSON -&gt; 502, not a crash" classname="./tests/db/functions_sync.test.ts" time="0.032" line="106" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; upstream timeout -&gt; 504" classname="./tests/db/functions_sync.test.ts" time="0.032" line="113" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; Link header pointing at another host is not followed (token never leaves Shopify)" classname="./tests/db/functions_sync.test.ts" time="0.030" line="120" col="11">
+        </testcase>
+        <testcase name="Shopify sync &gt; integration not configured -&gt; 404; shpss_ secret stored instead of token -&gt; 400" classname="./tests/db/functions_sync.test.ts" time="0.084" line="128" col="11">
+        </testcase>
+        <testcase name="Razorpay sync &gt; Basic auth sent; paginates with count/skip; persists normalised payments" classname="./tests/db/functions_sync.test.ts" time="0.686" line="146" col="11">
+        </testcase>
+        <testcase name="Razorpay sync &gt; duplicate prevention: re-sync updates in place" classname="./tests/db/functions_sync.test.ts" time="0.036" line="161" col="11">
+        </testcase>
+        <testcase name="Razorpay sync &gt; bad API key (401) -&gt; 502 + integration error" classname="./tests/db/functions_sync.test.ts" time="0.034" line="169" col="11">
+        </testcase>
+        <testcase name="Razorpay sync &gt; missing items array -&gt; 502 (response validation)" classname="./tests/db/functions_sync.test.ts" time="0.028" line="178" col="11">
+        </testcase>
+        <testcase name="Meta Ads sync &gt; follows paging.next on graph.facebook.com and upserts daily facts" classname="./tests/db/functions_sync.test.ts" time="0.063" line="193" col="11">
+        </testcase>
+        <testcase name="Meta Ads sync &gt; re-sync updates days in place (unique brand_id+fact_date)" classname="./tests/db/functions_sync.test.ts" time="0.055" line="211" col="11">
+        </testcase>
+        <testcase name="Meta Ads sync &gt; expired token (code 190) -&gt; 502 token_invalid, integration error" classname="./tests/db/functions_sync.test.ts" time="0.050" line="219" col="11">
+        </testcase>
+        <testcase name="Meta Ads sync &gt; missing ads_read permission (code 200) -&gt; permission error" classname="./tests/db/functions_sync.test.ts" time="0.033" line="228" col="11">
+        </testcase>
+        <testcase name="Meta Ads sync &gt; paging.next on a foreign host is ignored (token is in the query string)" classname="./tests/db/functions_sync.test.ts" time="0.039" line="235" col="11">
+        </testcase>
+        <testcase name="Instagram sync &gt; full permissions: token, account discovery, media" classname="./tests/db/functions_sync.test.ts" time="0.037" line="252" col="11">
+        </testcase>
+        <testcase name="Instagram sync &gt; partial permissions: token OK but pages_show_list missing -&gt; reported per capability, not a crash" classname="./tests/db/functions_sync.test.ts" time="0.026" line="263" col="11">
+        </testcase>
+        <testcase name="Instagram sync &gt; invalid token -&gt; 502 + integration error" classname="./tests/db/functions_sync.test.ts" time="0.028" line="273" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; stored integration: decrypts creds, live-style probe, returns connected" classname="./tests/db/functions_sync.test.ts" time="0.039" line="288" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; another tenant&apos;s integration_id -&gt; 404 (no existence oracle)" classname="./tests/db/functions_sync.test.ts" time="0.019" line="297" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; ad-hoc credentials: non-Shopify domain is refused before any request (SSRF)" classname="./tests/db/functions_sync.test.ts" time="0.002" line="303" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; shpss_ secret instead of shpat_ token -&gt; clear hint" classname="./tests/db/functions_sync.test.ts" time="0.001" line="310" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; razorpay: 401 -&gt; failed with Razorpay&apos;s description; bad key format rejected locally" classname="./tests/db/functions_sync.test.ts" time="0.003" line="315" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; meta: expired token classified" classname="./tests/db/functions_sync.test.ts" time="0.002" line="323" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; network failure -&gt; failed result (502), not an unhandled 400/500" classname="./tests/db/functions_sync.test.ts" time="0.003" line="329" col="11">
+        </testcase>
+        <testcase name="test-connection &gt; unsupported provider -&gt; 400; nothing -&gt; 400" classname="./tests/db/functions_sync.test.ts" time="0.002" line="335" col="11">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/db/schema_rls.test.ts" tests="20" disabled="0" errors="0" failures="0">
+        <testcase name="DB" classname="./tests/db/schema_rls.test.ts" time="11.915" line="16" col="6">
+        </testcase>
+        <testcase name="DB &gt; all 16 migrations replay on a fresh database (with documented shims)" classname="./tests/db/schema_rls.test.ts" time="4.666" line="25" col="13">
+        </testcase>
+        <testcase name="DB &gt; signup trigger provisions workspace + owner membership + brand" classname="./tests/db/schema_rls.test.ts" time="0.001" line="33" col="13">
+        </testcase>
+        <testcase name="DB &gt; contract: mapped Shopify customer/order/lines insert into the real tables" classname="./tests/db/schema_rls.test.ts" time="0.033" line="39" col="13">
+        </testcase>
+        <testcase name="DB &gt; contract: mapped Razorpay payment + Meta insight insert into the real tables" classname="./tests/db/schema_rls.test.ts" time="0.017" line="49" col="13">
+        </testcase>
+        <testcase name="DB &gt; regression: the column names the OLD functions wrote are rejected by the schema" classname="./tests/db/schema_rls.test.ts" time="0.017" line="55" col="13">
+        </testcase>
+        <testcase name="DB &gt; unique (brand_id, provider, provider_id) blocks duplicates; upsert updates in place" classname="./tests/db/schema_rls.test.ts" time="0.024" line="66" col="13">
+        </testcase>
+        <testcase name="DB &gt; same provider_id in two different brands is allowed (tenant-scoped uniqueness)" classname="./tests/db/schema_rls.test.ts" time="0.009" line="75" col="13">
+        </testcase>
+        <testcase name="DB &gt; foreign keys: unknown brand rejected; deleting an order cascades to its lines" classname="./tests/db/schema_rls.test.ts" time="0.024" line="81" col="13">
+        </testcase>
+        <testcase name="DB &gt; check constraints: order/payment status, quantity &gt; 0, non-negative amounts" classname="./tests/db/schema_rls.test.ts" time="0.012" line="90" col="13">
+        </testcase>
+        <testcase name="DB &gt; webhook dedupe trigger: second insert of same (brand, provider, event_id) is silently dropped" classname="./tests/db/schema_rls.test.ts" time="0.028" line="99" col="13">
+        </testcase>
+        <testcase name="DB &gt; sync history: syncrun rows record status transitions" classname="./tests/db/schema_rls.test.ts" time="0.032" line="112" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: tenant A reads only its own orders; tenant B&apos;s rows are invisible" classname="./tests/db/schema_rls.test.ts" time="0.049" line="122" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: tenant A cannot write into tenant B&apos;s workspace" classname="./tests/db/schema_rls.test.ts" time="0.017" line="131" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: tenant A cannot update or delete tenant B&apos;s rows (0 rows affected)" classname="./tests/db/schema_rls.test.ts" time="0.029" line="137" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: encrypted integration credentials are not readable by tenant users" classname="./tests/db/schema_rls.test.ts" time="0.019" line="144" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: tenant users cannot read raw webhook bodies of another tenant" classname="./tests/db/schema_rls.test.ts" time="0.017" line="151" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: unauthenticated (no JWT) role sees nothing" classname="./tests/db/schema_rls.test.ts" time="0.013" line="156" col="13">
+        </testcase>
+        <testcase name="DB &gt; RLS: viewer member sees the workspace but cannot see other workspaces" classname="./tests/db/schema_rls.test.ts" time="0.034" line="161" col="13">
+        </testcase>
+        <testcase name="DB &gt; SQL injection: hostile values are bound as parameters, never executed" classname="./tests/db/schema_rls.test.ts" time="0.009" line="170" col="13">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/db/security.test.ts" tests="29" disabled="0" errors="0" failures="0">
+        <testcase name="Security" classname="./tests/db/security.test.ts" time="6.954" line="20" col="6">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: missing Authorization -&gt; 401" classname="./tests/db/security.test.ts" time="0.027" line="28" col="13">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: invalid / expired JWT -&gt; 401" classname="./tests/db/security.test.ts" time="0.003" line="31" col="13">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: other tenant&apos;s workspace -&gt; 403, no upstream call" classname="./tests/db/security.test.ts" time="0.021" line="35" col="13">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: own workspace + other tenant&apos;s brand -&gt; 403" classname="./tests/db/security.test.ts" time="0.021" line="41" col="13">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: non-UUID ids (injection attempts) -&gt; 400" classname="./tests/db/security.test.ts" time="0.004" line="44" col="13">
+        </testcase>
+        <testcase name="Security &gt; shopify-sync: malformed JSON -&gt; 400; GET -&gt; 405; OPTIONS -&gt; CORS 200" classname="./tests/db/security.test.ts" time="0.003" line="49" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: missing Authorization -&gt; 401" classname="./tests/db/security.test.ts" time="0.003" line="28" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: invalid / expired JWT -&gt; 401" classname="./tests/db/security.test.ts" time="0.001" line="31" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: other tenant&apos;s workspace -&gt; 403, no upstream call" classname="./tests/db/security.test.ts" time="0.010" line="35" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: own workspace + other tenant&apos;s brand -&gt; 403" classname="./tests/db/security.test.ts" time="0.017" line="41" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: non-UUID ids (injection attempts) -&gt; 400" classname="./tests/db/security.test.ts" time="0.002" line="44" col="13">
+        </testcase>
+        <testcase name="Security &gt; razorpay-sync: malformed JSON -&gt; 400; GET -&gt; 405; OPTIONS -&gt; CORS 200" classname="./tests/db/security.test.ts" time="0.001" line="49" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: missing Authorization -&gt; 401" classname="./tests/db/security.test.ts" time="0.003" line="28" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: invalid / expired JWT -&gt; 401" classname="./tests/db/security.test.ts" time="0.002" line="31" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: other tenant&apos;s workspace -&gt; 403, no upstream call" classname="./tests/db/security.test.ts" time="0.009" line="35" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: own workspace + other tenant&apos;s brand -&gt; 403" classname="./tests/db/security.test.ts" time="0.019" line="41" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: non-UUID ids (injection attempts) -&gt; 400" classname="./tests/db/security.test.ts" time="0.003" line="44" col="13">
+        </testcase>
+        <testcase name="Security &gt; meta-ads-sync: malformed JSON -&gt; 400; GET -&gt; 405; OPTIONS -&gt; CORS 200" classname="./tests/db/security.test.ts" time="0.002" line="49" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: missing Authorization -&gt; 401" classname="./tests/db/security.test.ts" time="0.002" line="28" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: invalid / expired JWT -&gt; 401" classname="./tests/db/security.test.ts" time="0.001" line="31" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: other tenant&apos;s workspace -&gt; 403, no upstream call" classname="./tests/db/security.test.ts" time="0.009" line="35" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: own workspace + other tenant&apos;s brand -&gt; 403" classname="./tests/db/security.test.ts" time="0.017" line="41" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: non-UUID ids (injection attempts) -&gt; 400" classname="./tests/db/security.test.ts" time="0.002" line="44" col="13">
+        </testcase>
+        <testcase name="Security &gt; instagram-sync: malformed JSON -&gt; 400; GET -&gt; 405; OPTIONS -&gt; CORS 200" classname="./tests/db/security.test.ts" time="0.001" line="49" col="13">
+        </testcase>
+        <testcase name="Security &gt; test-connection: unauthenticated -&gt; 401 (cannot be used as an open proxy)" classname="./tests/db/security.test.ts" time="0.002" line="56" col="11">
+        </testcase>
+        <testcase name="Security &gt; missing service-role key -&gt; 500 misconfiguration (no silent anon fallback)" classname="./tests/db/security.test.ts" time="0.020" line="63" col="11">
+        </testcase>
+        <testcase name="Security &gt; credentials never appear in responses or logs" classname="./tests/db/security.test.ts" time="0.143" line="71" col="11">
+        </testcase>
+        <testcase name="Security &gt; CORS: preflight advertises only the headers the functions need" classname="./tests/db/security.test.ts" time="0.000" line="91" col="11">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/db/webhooks.test.ts" tests="24" disabled="0" errors="0" failures="0">
+        <testcase name="Shopify webhook" classname="./tests/db/webhooks.test.ts" time="2.094" line="15" col="6">
+        </testcase>
+        <testcase name="Razorpay webhook" classname="./tests/db/webhooks.test.ts" time="3.570" line="130" col="6">
+        </testcase>
+        <testcase name="Shopify webhook &gt; valid HMAC -&gt; 200 accepted, order + lines + event persisted" classname="./tests/db/webhooks.test.ts" time="0.034" line="26" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; duplicate delivery (same event id) -&gt; 200 duplicate, nothing processed twice" classname="./tests/db/webhooks.test.ts" time="0.006" line="37" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; no event-id header -&gt; dedupe falls back to body hash" classname="./tests/db/webhooks.test.ts" time="0.014" line="44" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; invalid HMAC -&gt; 401, nothing written" classname="./tests/db/webhooks.test.ts" time="0.004" line="51" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; tampered body with the original signature -&gt; 401" classname="./tests/db/webhooks.test.ts" time="0.003" line="58" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; missing signature header -&gt; 401" classname="./tests/db/webhooks.test.ts" time="0.001" line="64" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; signature valid for brand A replayed against brand B -&gt; 401 (per-brand secrets)" classname="./tests/db/webhooks.test.ts" time="0.003" line="68" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; unknown brand -&gt; 401 (same as bad signature; no brand enumeration)" classname="./tests/db/webhooks.test.ts" time="0.001" line="74" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; invalid / missing brand_id -&gt; 400" classname="./tests/db/webhooks.test.ts" time="0.001" line="78" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; validly-signed malformed JSON -&gt; 400" classname="./tests/db/webhooks.test.ts" time="0.002" line="84" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; non-order topic -&gt; accepted + logged, but no order projected" classname="./tests/db/webhooks.test.ts" time="0.006" line="89" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; payload &gt; 1 MiB -&gt; 413" classname="./tests/db/webhooks.test.ts" time="0.003" line="96" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; GET -&gt; 405; OPTIONS preflight -&gt; 200 with CORS headers" classname="./tests/db/webhooks.test.ts" time="0.001" line="101" col="11">
+        </testcase>
+        <testcase name="Shopify webhook &gt; RETRY: processing failure -&gt; 500 and NO event logged; provider retry then succeeds" classname="./tests/db/webhooks.test.ts" time="0.019" line="108" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; valid X-Razorpay-Signature -&gt; accepted, payment persisted as captured" classname="./tests/db/webhooks.test.ts" time="0.044" line="138" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; Razorpay retry with same X-Razorpay-Event-Id -&gt; duplicate" classname="./tests/db/webhooks.test.ts" time="0.014" line="147" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; later event for same payment (refund) updates the row in place" classname="./tests/db/webhooks.test.ts" time="0.027" line="153" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; signed with the API key secret instead of the webhook secret -&gt; 401" classname="./tests/db/webhooks.test.ts" time="0.008" line="161" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; invalid / missing signature -&gt; 401" classname="./tests/db/webhooks.test.ts" time="0.011" line="166" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; validly-signed malformed JSON -&gt; 400" classname="./tests/db/webhooks.test.ts" time="0.008" line="171" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; non-payment event (settlement) -&gt; accepted and logged, no payment row" classname="./tests/db/webhooks.test.ts" time="0.022" line="176" col="11">
+        </testcase>
+        <testcase name="Razorpay webhook &gt; integration without a stored webhook secret rejects everything (fail closed)" classname="./tests/db/webhooks.test.ts" time="0.028" line="184" col="11">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/live/live_api.test.ts" tests="4" disabled="4" errors="0" failures="0">
+        <testcase name="LIVE Shopify Admin API" classname="./tests/live/live_api.test.ts" time="0.000" line="33" col="6">
+            <skipped/>
+        </testcase>
+        <testcase name="LIVE Razorpay API" classname="./tests/live/live_api.test.ts" time="0.000" line="53" col="6">
+            <skipped/>
+        </testcase>
+        <testcase name="LIVE Meta Ads Graph API" classname="./tests/live/live_api.test.ts" time="0.000" line="71" col="6">
+            <skipped/>
+        </testcase>
+        <testcase name="LIVE Instagram Graph API" classname="./tests/live/live_api.test.ts" time="0.000" line="89" col="6">
+            <skipped/>
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/unit/crypto.test.ts" tests="6" disabled="0" errors="0" failures="0">
+        <testcase name="Crypto: Encrypt and Decrypt Round-trip" classname="./tests/unit/crypto.test.ts" time="0.007" line="8" col="6">
+        </testcase>
+        <testcase name="Crypto: Postgres Hex Format (\x) Compatibility" classname="./tests/unit/crypto.test.ts" time="0.002" line="24" col="6">
+        </testcase>
+        <testcase name="Crypto: tampered ciphertext is rejected (GCM auth tag)" classname="./tests/unit/crypto.test.ts" time="0.004" line="42" col="6">
+        </testcase>
+        <testcase name="Crypto: data encrypted under a different master key cannot be decrypted (expired/rotated key)" classname="./tests/unit/crypto.test.ts" time="0.002" line="48" col="6">
+        </testcase>
+        <testcase name="Crypto: no key configured -&gt; explicit misconfiguration error (no hard-coded fallback)" classname="./tests/unit/crypto.test.ts" time="0.003" line="59" col="6">
+        </testcase>
+        <testcase name="Crypto: empty / short input -&gt; {} ; invalid hex -&gt; error" classname="./tests/unit/crypto.test.ts" time="0.002" line="72" col="6">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/unit/logger.test.ts" tests="3" disabled="0" errors="0" failures="0">
+        <testcase name="Logger: Sensitive Data Redaction" classname="./tests/unit/logger.test.ts" time="0.003" line="7" col="6">
+        </testcase>
+        <testcase name="Logger: signature headers, api keys, cookies and arrays are redacted" classname="./tests/unit/logger.test.ts" time="0.001" line="27" col="6">
+        </testcase>
+        <testcase name="Logger: long secrets keep at most a 4-char prefix" classname="./tests/unit/logger.test.ts" time="0.000" line="38" col="6">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/unit/mappers.test.ts" tests="17" disabled="0" errors="0" failures="0">
+        <testcase name="toMinor: exact decimal -&gt; paise conversion without float drift" classname="./tests/unit/mappers.test.ts" time="0.004" line="23" col="6">
+        </testcase>
+        <testcase name="toMinor: invalid / empty input -&gt; 0" classname="./tests/unit/mappers.test.ts" time="0.001" line="33" col="6">
+        </testcase>
+        <testcase name="normalizeShopDomain: accepts store forms" classname="./tests/unit/mappers.test.ts" time="0.001" line="37" col="6">
+        </testcase>
+        <testcase name="normalizeShopDomain: rejects non-Shopify hosts (prevents token exfiltration / SSRF)" classname="./tests/unit/mappers.test.ts" time="0.003" line="43" col="6">
+        </testcase>
+        <testcase name="Shopify financial status -&gt; schema CHECK values" classname="./tests/unit/mappers.test.ts" time="0.001" line="50" col="6">
+        </testcase>
+        <testcase name="Shopify fulfillment status: null -&gt; unfulfilled (column is NOT NULL)" classname="./tests/unit/mappers.test.ts" time="0.000" line="60" col="6">
+        </testcase>
+        <testcase name="mapShopifyOrder: amounts in paise, keyed by provider/provider_id, net excludes tax+shipping" classname="./tests/unit/mappers.test.ts" time="0.001" line="67" col="6">
+        </testcase>
+        <testcase name="mapShopifyOrder: missing id throws; missing optional fields default safely" classname="./tests/unit/mappers.test.ts" time="0.001" line="97" col="6">
+        </testcase>
+        <testcase name="mapShopifyCustomer: no fabricated placeholder emails; null customer -&gt; null" classname="./tests/unit/mappers.test.ts" time="0.001" line="106" col="6">
+        </testcase>
+        <testcase name="mapShopifyLineItems: quantity &gt;= 1, non-negative prices, title required" classname="./tests/unit/mappers.test.ts" time="0.001" line="114" col="6">
+        </testcase>
+        <testcase name="Shopify Link header pagination" classname="./tests/unit/mappers.test.ts" time="0.003" line="123" col="6">
+        </testcase>
+        <testcase name="Razorpay status/method -&gt; schema CHECK values" classname="./tests/unit/mappers.test.ts" time="0.001" line="133" col="6">
+        </testcase>
+        <testcase name="mapRazorpayPayment: amount already in paise, unix timestamp parsed" classname="./tests/unit/mappers.test.ts" time="0.002" line="142" col="6">
+        </testcase>
+        <testcase name="Meta ad account id normalisation" classname="./tests/unit/mappers.test.ts" time="0.001" line="154" col="6">
+        </testcase>
+        <testcase name="mapMetaInsightDay: purchases are max() over overlapping action types, revenue in paise" classname="./tests/unit/mappers.test.ts" time="0.001" line="161" col="6">
+        </testcase>
+        <testcase name="mapMetaInsightDay: empty metrics -&gt; zeros; bad date throws" classname="./tests/unit/mappers.test.ts" time="0.002" line="179" col="6">
+        </testcase>
+        <testcase name="classifyMetaError: token expiry / permission / rate limit" classname="./tests/unit/mappers.test.ts" time="0.001" line="186" col="6">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/unit/signatures.test.ts" tests="14" disabled="0" errors="0" failures="0">
+        <testcase name="Shopify: signature equals base64 HMAC-SHA256 (matches node:crypto reference)" classname="./tests/unit/signatures.test.ts" time="0.012" line="21" col="6">
+        </testcase>
+        <testcase name="Razorpay: signature equals hex HMAC-SHA256 (matches node:crypto reference)" classname="./tests/unit/signatures.test.ts" time="0.001" line="25" col="6">
+        </testcase>
+        <testcase name="Shopify: valid HMAC accepted" classname="./tests/unit/signatures.test.ts" time="0.002" line="29" col="6">
+        </testcase>
+        <testcase name="Shopify: tolerates surrounding whitespace in header" classname="./tests/unit/signatures.test.ts" time="0.001" line="33" col="6">
+        </testcase>
+        <testcase name="Shopify: wrong secret rejected" classname="./tests/unit/signatures.test.ts" time="0.001" line="37" col="6">
+        </testcase>
+        <testcase name="Shopify: body re-serialised (whitespace change) rejected - must use raw bytes" classname="./tests/unit/signatures.test.ts" time="0.001" line="41" col="6">
+        </testcase>
+        <testcase name="Shopify: hex-encoded signature (wrong encoding) rejected" classname="./tests/unit/signatures.test.ts" time="0.001" line="46" col="6">
+        </testcase>
+        <testcase name="Shopify: missing header / missing secret rejected" classname="./tests/unit/signatures.test.ts" time="0.001" line="50" col="6">
+        </testcase>
+        <testcase name="Razorpay: valid signature accepted (case-insensitive hex)" classname="./tests/unit/signatures.test.ts" time="0.002" line="55" col="6">
+        </testcase>
+        <testcase name="Razorpay: tampered body rejected" classname="./tests/unit/signatures.test.ts" time="0.001" line="61" col="6">
+        </testcase>
+        <testcase name="Razorpay: API key secret is not the webhook secret" classname="./tests/unit/signatures.test.ts" time="0.001" line="66" col="6">
+        </testcase>
+        <testcase name="Razorpay: base64 signature (wrong encoding) / empty / missing rejected" classname="./tests/unit/signatures.test.ts" time="0.001" line="70" col="6">
+        </testcase>
+        <testcase name="timingSafeEqual: equal, different, different length" classname="./tests/unit/signatures.test.ts" time="0.000" line="76" col="6">
+        </testcase>
+        <testcase name="sha256Hex: known vector" classname="./tests/unit/signatures.test.ts" time="0.001" line="83" col="6">
+        </testcase>
+    </testsuite>
+    <testsuite name="./tests/unit/upstream_http.test.ts" tests="10" disabled="0" errors="0" failures="0">
+        <testcase name="fetchWithRetry: 429 with Retry-After is retried after the advertised delay" classname="./tests/unit/upstream_http.test.ts" time="0.055" line="22" col="6">
+        </testcase>
+        <testcase name="fetchWithRetry: 5xx retried with exponential back-off, then gives up and returns last response" classname="./tests/unit/upstream_http.test.ts" time="0.002" line="31" col="6">
+        </testcase>
+        <testcase name="fetchWithRetry: 4xx (other than 429) is NOT retried" classname="./tests/unit/upstream_http.test.ts" time="0.001" line="40" col="6">
+        </testcase>
+        <testcase name="fetchWithRetry: timeout -&gt; UpstreamError(kind=timeout) after retries" classname="./tests/unit/upstream_http.test.ts" time="0.057" line="47" col="6">
+        </testcase>
+        <testcase name="fetchWithRetry: network error -&gt; retried, then UpstreamError(kind=network)" classname="./tests/unit/upstream_http.test.ts" time="0.002" line="54" col="6">
+        </testcase>
+        <testcase name="fetchWithRetry: recovers when a transient network error is followed by success" classname="./tests/unit/upstream_http.test.ts" time="0.002" line="61" col="6">
+        </testcase>
+        <testcase name="parseRetryAfterMs: seconds, http-date, garbage" classname="./tests/unit/upstream_http.test.ts" time="0.001" line="67" col="6">
+        </testcase>
+        <testcase name="safeJson: empty body -&gt; {}, malformed -&gt; null, valid -&gt; object" classname="./tests/unit/upstream_http.test.ts" time="0.001" line="75" col="6">
+        </testcase>
+        <testcase name="UUID validation and clamping" classname="./tests/unit/upstream_http.test.ts" time="0.001" line="81" col="6">
+        </testcase>
+        <testcase name="readJsonObject: malformed JSON / arrays / scalars are 400" classname="./tests/unit/upstream_http.test.ts" time="0.008" line="97" col="6">
+        </testcase>
+    </testsuite>
+</testsuites>

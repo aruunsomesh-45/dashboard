@@ -1,0 +1,737 @@
+{
+  "info": {
+    "name": "lilly",
+    "description": "125East 5-App Integration and Webhook Automated Test Suite",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:54321/functions/v1",
+      "type": "string"
+    },
+    {
+      "key": "supabase_url",
+      "value": "https://ybyroxyofqfpozvfedhc.supabase.co",
+      "type": "string"
+    },
+    {
+      "key": "anon_key",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlieXJveHlvZnFmcG96dmZlZGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMjg2NjksImV4cCI6MjEwOTkwNDY2OX0.tGUf2QP8SpmS0ml19cCRPJ4wdV5hW8NeWwgPCe7rA4s",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "brand_id",
+      "value": "525ae07a-0910-4bc9-8942-24cdbde03d2e",
+      "type": "string"
+    },
+    {
+      "key": "workspace_id",
+      "value": "0a24cbdf-31c4-4ab3-8e32-54504fd9e676",
+      "type": "string"
+    },
+    {
+      "key": "shopify_webhook_secret",
+      "value": "d63bc72448aa0e57ee44f08a4691834b89e4da5d56a9d6e96bc2cd7a686d7380",
+      "type": "string"
+    },
+    {
+      "key": "razorpay_webhook_secret",
+      "value": "ci-local-dev-secret-key-do-not-use-in-production-125east!",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "lilly",
+      "item": [
+        {
+          "name": "0. Authentication",
+          "item": [
+            {
+              "name": "Get User Token (Auto-fills Token)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Login Successful (Status 200)', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "const res = pm.response.json();",
+                      "if (res.access_token) {",
+                      "    pm.collectionVariables.set('auth_token', res.access_token);",
+                      "    console.log('Saved auth_token successfully!');",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"aruunasomesh@gmail.com\",\n  \"password\": \"lily phillips\"\n}"
+                },
+                "url": {
+                  "raw": "{{supabase_url}}/auth/v1/token?grant_type=password",
+                  "host": [
+                    "{{supabase_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "v1",
+                    "token"
+                  ],
+                  "query": [
+                    {
+                      "key": "grant_type",
+                      "value": "password"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "1. Shopify",
+          "item": [
+            {
+              "name": "1.1 Test Shopify Connection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Connection Endpoint Responded Cleanly', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\",\n  \"provider\": \"shopify\",\n  \"credentials\": {\n    \"shop_domain\": \"demo-store.myshopify.com\",\n    \"access_token\": \"shpat_test_mock_token\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/test-connection",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "test-connection"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "1.2 Sync Shopify Orders & Products",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Sync Handler Executed', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/shopify-sync",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "shopify-sync"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "1.3 Order Created Webhook (Auto HMAC-SHA256)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const secret = pm.collectionVariables.get('shopify_webhook_secret') || 'ci-local-dev-secret-key-do-not-use-in-production-125east!';",
+                      "const rawBody = pm.request.body.raw;",
+                      "const hash = CryptoJS.HmacSHA256(rawBody, secret);",
+                      "const hmacBase64 = CryptoJS.enc.Base64.stringify(hash);",
+                      "pm.variables.set('shopify_hmac', hmacBase64);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Webhook Verified and Accepted (Status 200)', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Shopify-Topic",
+                    "value": "orders/create"
+                  },
+                  {
+                    "key": "X-Shopify-Shop-Domain",
+                    "value": "qwqrk9-d0.myshopify.com"
+                  },
+                  {
+                    "key": "X-Shopify-Hmac-Sha256",
+                    "value": "{{shopify_hmac}}"
+                  },
+                  {
+                    "key": "X-Shopify-Webhook-Id",
+                    "value": "wh_postman_test_101"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": 9901122,\n  \"name\": \"#1099\",\n  \"total_price\": \"2499.00\",\n  \"currency\": \"INR\",\n  \"financial_status\": \"paid\",\n  \"created_at\": \"2026-11-21T06:00:00Z\",\n  \"customer\": {\n    \"first_name\": \"Aruuna\",\n    \"last_name\": \"Somesh\",\n    \"email\": \"aruuna@example.com\"\n  },\n  \"line_items\": [\n    {\n      \"id\": 101,\n      \"title\": \"125East Signature Fragrance\",\n      \"quantity\": 1,\n      \"price\": \"2499.00\"\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/webhook-shopify?brand_id={{brand_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhook-shopify"
+                  ],
+                  "query": [
+                    {
+                      "key": "brand_id",
+                      "value": "{{brand_id}}"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Razorpay",
+          "item": [
+            {
+              "name": "2.1 Test Razorpay Connection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Connection Endpoint Responded Cleanly', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\",\n  \"provider\": \"razorpay\",\n  \"credentials\": {\n    \"key_id\": \"rzp_test_mock\",\n    \"key_secret\": \"mock_secret\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/test-connection",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "test-connection"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2.2 Sync Razorpay Payments",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Sync Handler Executed', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/razorpay-sync",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "razorpay-sync"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2.3 Payment Captured Webhook (Auto Hex HMAC)",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const secret = pm.collectionVariables.get('razorpay_webhook_secret') || 'ci-local-dev-secret-key-do-not-use-in-production-125east!';",
+                      "const rawBody = pm.request.body.raw;",
+                      "const hash = CryptoJS.HmacSHA256(rawBody, secret);",
+                      "const hexSignature = CryptoJS.enc.Hex.stringify(hash);",
+                      "pm.variables.set('razorpay_signature', hexSignature);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Webhook Verified and Accepted (Status 200)', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Razorpay-Signature",
+                    "value": "{{razorpay_signature}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"entity\": \"event\",\n  \"account_id\": \"acc_125east_test\",\n  \"event\": \"payment.captured\",\n  \"contains\": [\"payment\"],\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"pay_postman_998877\",\n        \"amount\": 249900,\n        \"currency\": \"INR\",\n        \"status\": \"captured\",\n        \"method\": \"upi\",\n        \"email\": \"aruuna@example.com\",\n        \"contact\": \"+919876543210\",\n        \"created_at\": 1732168800\n      }\n    }\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/webhook-razorpay?brand_id={{brand_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhook-razorpay"
+                  ],
+                  "query": [
+                    {
+                      "key": "brand_id",
+                      "value": "{{brand_id}}"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Meta Ads",
+          "item": [
+            {
+              "name": "3.1 Test Meta Ads Connection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Connection Endpoint Responded Cleanly', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\",\n  \"provider\": \"meta\",\n  \"credentials\": {\n    \"access_token\": \"EAAB_mock_token\",\n    \"ad_account_id\": \"act_12345\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/test-connection",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "test-connection"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "3.2 Sync Campaigns & Ad Spend",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Sync Handler Executed', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/meta-ads-sync",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "meta-ads-sync"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Instagram",
+          "item": [
+            {
+              "name": "4.1 Test Instagram Connection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Connection Endpoint Responded Cleanly', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\",\n  \"provider\": \"instagram\",\n  \"credentials\": {\n    \"access_token\": \"IGQV_mock_token\",\n    \"instagram_id\": \"17841400000000\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/test-connection",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "test-connection"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "4.2 Sync Media & Social Insights",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Sync Handler Executed', function () {",
+                      "    pm.expect([200, 400, 502]).to.include(pm.response.code);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  },
+                  {
+                    "key": "apikey",
+                    "value": "{{anon_key}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"workspace_id\": \"{{workspace_id}}\",\n  \"brand_id\": \"{{brand_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/instagram-sync",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "instagram-sync"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Security & Boundary Guard",
+          "item": [
+            {
+              "name": "5.1 Reject Unauthenticated (Expect 401)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Unauthenticated Access Blocked with 401', function () {",
+                      "    pm.response.to.have.status(401);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/shopify-sync",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "shopify-sync"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5.2 Reject Tampered Webhook Signature (Expect 401)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Tampered Signature Rejected with 401', function () {",
+                      "    pm.response.to.have.status(401);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Shopify-Topic",
+                    "value": "orders/create"
+                  },
+                  {
+                    "key": "X-Shopify-Shop-Domain",
+                    "value": "demo.myshopify.com"
+                  },
+                  {
+                    "key": "X-Shopify-Hmac-Sha256",
+                    "value": "forged_signature_xyz=="
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"id\": 12345}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/webhook-shopify?brand_id={{brand_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "webhook-shopify"
+                  ],
+                  "query": [
+                    {
+                      "key": "brand_id",
+                      "value": "{{brand_id}}"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

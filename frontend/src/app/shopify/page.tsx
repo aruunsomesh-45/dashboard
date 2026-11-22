@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ModuleGuard } from "@/components/auth/ModuleGuard";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { ShopifyLogo } from "@/components/icons/AppLogos";
@@ -200,7 +201,8 @@ export default function ShopifyDashboard() {
 
   return (
     <DashboardShell>
-      <div className="space-y-6">
+      <ModuleGuard moduleKey="shopify" moduleName="Shopify Store">
+        <div className="space-y-6">
         {/* Header with Brand switcher & Sync action */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-ivory-300">
           <div>
@@ -613,7 +615,8 @@ export default function ShopifyDashboard() {
             </table>
           </div>
         </div>
-      </div>
+        </div>
+      </ModuleGuard>
     </DashboardShell>
   );
 }

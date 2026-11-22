@@ -157,6 +157,10 @@ REST_FRAMEWORK = {
     # Rate limiting. Views opt in with `throttle_scope = "<scope>"` (ScopedRateThrottle).
     # Counters live in the Django cache (LocMemCache).
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    # How many trusted proxies append to X-Forwarded-For in front of Django. With the DRF default (None)
+    # the WHOLE client-supplied X-Forwarded-For string is the throttle key, so a caller can rotate it to
+    # bypass the login/MFA rate limit. Set to the real hop count (e.g. 2 for Vercel -> Cloudflare -> Django).
+    "NUM_PROXIES": env.int("DRF_NUM_PROXIES", default=None),
     "DEFAULT_THROTTLE_RATES": {
         "auth": env("THROTTLE_AUTH", default="5/min"),  # login/register/MFA/password-reset, per client IP
         "sync": env("THROTTLE_SYNC", default="6/min"),

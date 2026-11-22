@@ -402,6 +402,9 @@ class TestReplay:
     def test_same_event_twice_is_200_but_stored_and_processed_once(self, spec, tenants, send, enqueued, brand_a):
         body, headers = spec.request(1)
         first = send(spec, brand_a, body, headers)
+        # apply_async is mocked, so simulate the worker having finished the first delivery.
+        # (An event that is still unprocessed IS re-enqueued on redelivery: see the next test.)
+        WebhookEvent.objects.update(processed=True)
         second = send(spec, brand_a, body, headers)
 
         assert (first.res.status_code, second.res.status_code) == (200, 200), (first.res.content, second.res.content)
@@ -409,12 +412,26 @@ class TestReplay:
         assert len(enqueued_event_ids(enqueued)) == 1, "a replayed event was processed again"
         assert second.res.json().get("status") == "duplicate"
 
+    @with_provider
+    def test_redelivery_of_an_unprocessed_event_is_reenqueued_not_dropped(self, spec, tenants, send, enqueued, brand_a):
+        """QA 2026-11-21: if processing of the first delivery failed, the provider's retry must re-run it.
+        Re-running is safe: processing skips processed events and ingest is upsert-based."""
+        body, headers = spec.request(1)
+        send(spec, brand_a, body, headers)
+        second = send(spec, brand_a, body, headers)
+        assert second.res.status_code == 200
+        assert second.res.json().get("status") == "retrying"
+        assert WebhookEvent.objects.count() == 1, "a redelivery must not create a second event row"
+        ids = enqueued_event_ids(enqueued)
+        assert len(ids) == 2 and len(set(ids)) == 1, "the SAME stored event is re-enqueued"
+
     @pytest.mark.parametrize("spec", [s for s in PROVIDERS if s.event_id_header], ids=lambda s: s.slug)
     def test_provider_event_id_header_is_the_dedupe_key(self, spec, tenants, send, enqueued, brand_a):
         same_id_other_body = [spec.request(1), spec.request(2)]
         same_id_other_body[1][1][spec.event_id_header] = same_id_other_body[0][1][spec.event_id_header]
         for body, headers in same_id_other_body:
             assert send(spec, brand_a, body, headers).res.status_code == 200
+            WebhookEvent.objects.update(processed=True)  # worker finished (apply_async is mocked)
         assert WebhookEvent.objects.count() == 1 and len(enqueued.call_args_list) == 1
 
     @pytest.mark.parametrize("spec", [s for s in PROVIDERS if s.event_id_header], ids=lambda s: s.slug)

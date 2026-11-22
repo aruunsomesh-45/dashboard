@@ -4,18 +4,25 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_BACKEND = "https://motion-islamic-starting-window.trycloudflare.com";
 
-async function proxyRequest(req: NextRequest, { params }: { params: { path?: string[] } }) {
-  let targetHost = process.env.BACKEND_URL || DEFAULT_BACKEND;
-  if (!targetHost || targetHost.includes("brooks-pharmaceuticals") || (process.env.VERCEL === "1" && targetHost.includes("127.0.0.1"))) {
-    targetHost = DEFAULT_BACKEND;
-  }
-  const cleanTargetHost = targetHost.replace(/\/+$/, "");
+// QA 2026-11-21: the fallback to DEFAULT_BACKEND re-sent the request (cookies + body) to a second backend whenever
+// the first answered 5xx or was unreachable. For POST/PUT/PATCH/DELETE that can replay a login, payment action or
+// sync that was already partly processed, so the fallback is now limited to idempotent reads.
+// Set DISABLE_BACKEND_FALLBACK=true to turn it off completely (isolated test stacks, staging).
+const IDEMPOTENT = new Set(["GET", "HEAD", "OPTIONS"]);
+const FALLBACK_ENABLED = process.env.DISABLE_BACKEND_FALLBACK !== "true";
 
+async function proxyRequest(req: NextRequest, { params }: { params: { path?: string[] } }) {
   const pathParts = params?.path || [];
   const joinedPath = pathParts.join("/");
   const hasTrailingSlash = req.nextUrl.pathname.endsWith("/");
   const pathWithSlash = joinedPath ? (hasTrailingSlash ? `${joinedPath}/` : joinedPath) : (hasTrailingSlash ? "/" : "");
   const search = req.nextUrl.search || "";
+
+  let targetHost = process.env.BACKEND_URL || DEFAULT_BACKEND;
+  if (!targetHost || targetHost.includes("brooks-pharmaceuticals") || (process.env.VERCEL === "1" && targetHost.includes("127.0.0.1"))) {
+    targetHost = DEFAULT_BACKEND;
+  }
+  const cleanTargetHost = targetHost.replace(/\/+$/, "");
   const targetUrl = `${cleanTargetHost}/api/${pathWithSlash}${search}`;
   const fallbackUrl = `${DEFAULT_BACKEND}/api/${pathWithSlash}${search}`;
 
@@ -30,9 +37,11 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path?: str
   const parsedHost = new URL(cleanTargetHost).host;
   headers.set("host", parsedHost);
   headers.set("x-forwarded-host", req.headers.get("host") || "125east-dashboard.vercel.app");
-  headers.set("x-forwarded-proto", "https");
+  const incomingProto = req.headers.get("x-forwarded-proto") || (req.nextUrl.protocol ? req.nextUrl.protocol.replace(":", "") : "http");
+  headers.set("x-forwarded-proto", incomingProto);
 
   const method = req.method;
+  const mayFallback = FALLBACK_ENABLED && IDEMPOTENT.has(method.toUpperCase());
   let body: BodyInit | undefined = undefined;
   if (method !== "GET" && method !== "HEAD") {
     body = await req.arrayBuffer();
@@ -48,7 +57,7 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path?: str
       cache: "no-store",
     });
 
-    if (backendRes.status >= 502 && cleanTargetHost !== DEFAULT_BACKEND) {
+    if (mayFallback && backendRes.status >= 502 && cleanTargetHost !== DEFAULT_BACKEND) {
       const fallbackHeaders = new Headers(headers);
       fallbackHeaders.set("host", new URL(DEFAULT_BACKEND).host);
       backendRes = await fetch(fallbackUrl, {
@@ -60,7 +69,7 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path?: str
       });
     }
   } catch (err: any) {
-    if (cleanTargetHost !== DEFAULT_BACKEND) {
+    if (mayFallback && cleanTargetHost !== DEFAULT_BACKEND) {
       try {
         const fallbackHeaders = new Headers(headers);
         fallbackHeaders.set("host", new URL(DEFAULT_BACKEND).host);
@@ -72,22 +81,12 @@ async function proxyRequest(req: NextRequest, { params }: { params: { path?: str
           cache: "no-store",
         });
       } catch (fallbackErr: any) {
-        return NextResponse.json(
-          {
-            error: "Backend service unreachable.",
-            details: fallbackErr?.message || String(fallbackErr),
-          },
-          { status: 502 }
-        );
+        console.error("[api proxy] fallback backend unreachable:", fallbackErr?.message || fallbackErr);
+        return NextResponse.json({ error: "Backend service unreachable." }, { status: 502 });
       }
     } else {
-      return NextResponse.json(
-        {
-          error: "Backend service unreachable.",
-          details: err?.message || String(err),
-        },
-        { status: 502 }
-      );
+      console.error("[api proxy] backend unreachable:", err?.message || err);
+      return NextResponse.json({ error: "Backend service unreachable." }, { status: 502 });
     }
   }
 

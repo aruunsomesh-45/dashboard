@@ -45,13 +45,27 @@ from .services import (
     register_user_with_workspace,
     send_password_reset_email,
     verify_and_consume_recovery_code,
-    verify_totp_code,
+    clear_mfa_failures,
+    mfa_is_locked,
+    record_mfa_failure,
     verify_totp_with_anti_replay,
 )
 
 logger = logging.getLogger(__name__)
 
 POST_AUTH_REDIRECT = "/dashboard"
+
+MFA_LOCKED_RESPONSE = {"error": "Too many failed verification attempts. Please wait 15 minutes and try again."}
+
+
+def _active_totp_secret(user) -> str:
+    """The confirmed TOTP secret: encrypted UserMFA row when enabled, else the legacy column (old rows)."""
+    user_mfa = getattr(user, "mfa", None)
+    if user_mfa and user_mfa.is_enabled and user_mfa.encrypted_totp_secret:
+        secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret)
+        if secret:
+            return secret
+    return user.mfa_secret or ""
 
 
 def get_client_ip(request):
@@ -240,13 +254,12 @@ class MFAChallengeView(CsrfProtectedMixin, APIView):
             except User.DoesNotExist:
                 return Response({"error": "User not found."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Get TOTP secret (from encrypted UserMFA or user.mfa_secret fallback)
-        secret = ""
-        user_mfa = getattr(user, "mfa", None)
-        if user_mfa and user_mfa.encrypted_totp_secret:
-            secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret)
-        if not secret:
-            secret = user.mfa_secret
+        if mfa_is_locked(user):
+            return Response(MFA_LOCKED_RESPONSE, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # Only the CONFIRMED secret may satisfy login. (A pending, unconfirmed enrollment secret must never
+        # be accepted here, otherwise a stolen session could re-enroll and own the second factor.)
+        secret = _active_totp_secret(user)
 
         is_valid_totp = False
         if secret:
@@ -258,6 +271,7 @@ class MFAChallengeView(CsrfProtectedMixin, APIView):
             is_valid_recovery = verify_and_consume_recovery_code(user, code)
 
         if not (is_valid_totp or is_valid_recovery):
+            record_mfa_failure(user)
             if challenge:
                 challenge.attempts += 1
                 challenge.save(update_fields=["attempts"])
@@ -267,6 +281,7 @@ class MFAChallengeView(CsrfProtectedMixin, APIView):
             )
 
         # Success - consume challenge and start session
+        clear_mfa_failures(user)
         if challenge:
             challenge.consume()
         request.session.pop("pre_mfa_user_id", None)
@@ -328,7 +343,11 @@ class MFARecoveryLoginView(CsrfProtectedMixin, APIView):
             except User.DoesNotExist:
                 return Response({"error": "User not found."}, status=status.HTTP_401_UNAUTHORIZED)
 
+        if mfa_is_locked(user):
+            return Response(MFA_LOCKED_RESPONSE, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
         if not verify_and_consume_recovery_code(user, recovery_code):
+            record_mfa_failure(user)
             if challenge:
                 challenge.attempts += 1
                 challenge.save(update_fields=["attempts"])
@@ -337,6 +356,7 @@ class MFARecoveryLoginView(CsrfProtectedMixin, APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        clear_mfa_failures(user)
         if challenge:
             challenge.consume()
         request.session.pop("pre_mfa_user_id", None)
@@ -359,8 +379,18 @@ class MFASetupView(APIView):
     POST /api/v1/security/mfa/setup/ or POST /api/auth/mfa/setup/
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = "auth"
 
     def post(self, request):
+        existing = getattr(request.user, "mfa", None)
+        if request.user.mfa_enabled or (existing and existing.is_enabled):
+            # Re-enrolling would replace the second factor with only a session as proof. Require the
+            # disable flow (password + current code) first.
+            return Response(
+                {"error": "Two-factor authentication is already enabled. Disable it first to enroll a new authenticator."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
         secret = generate_totp_secret()
         encrypted = encrypt_totp_secret(secret)
 
@@ -368,6 +398,7 @@ class MFASetupView(APIView):
         user_mfa.encrypted_totp_secret = encrypted
         user_mfa.is_enabled = False
         user_mfa.confirmed_at = None
+        user_mfa.last_used_step = 0  # replay high-water mark belongs to the previous secret
         user_mfa.save()
 
         request.session["pending_mfa_secret"] = secret
@@ -389,6 +420,7 @@ class MFAConfirmView(APIView):
     POST /api/v1/security/mfa/confirm/ or POST /api/auth/mfa/confirm/
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = MFASetupConfirmSerializer(data=request.data)
@@ -419,7 +451,8 @@ class MFAConfirmView(APIView):
         user_mfa.save()
 
         user = request.user
-        user.mfa_secret = secret
+        # The secret is stored ONLY encrypted (UserMFA). The legacy plaintext column is cleared.
+        user.mfa_secret = ""
         user.mfa_enabled = True
         user.save(update_fields=["mfa_secret", "mfa_enabled"])
 
@@ -443,6 +476,7 @@ class MFADisableView(APIView):
     Requires user's current password plus either a valid TOTP code or recovery code.
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = MFADisableSerializer(data=request.data)
@@ -454,18 +488,22 @@ class MFADisableView(APIView):
         if not user.check_password(password):
             return Response({"error": "Incorrect password."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if mfa_is_locked(user):
+            return Response(MFA_LOCKED_RESPONSE, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
         code = serializer.validated_data.get("code", "").strip()
         user_mfa = getattr(user, "mfa", None)
-        secret = decrypt_totp_secret(user_mfa.encrypted_totp_secret) if user_mfa and user_mfa.encrypted_totp_secret else user.mfa_secret
+        secret = _active_totp_secret(user)
 
         verified = False
         if code:
-            if secret and verify_totp_code(secret, code):
+            if secret and verify_totp_with_anti_replay(user, secret, code):
                 verified = True
             elif verify_and_consume_recovery_code(user, code):
                 verified = True
 
         if not verified:
+            record_mfa_failure(user)
             return Response({"error": "A valid 6-digit OTP or recovery code is required to disable 2FA."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Disable MFA
@@ -476,7 +514,8 @@ class MFADisableView(APIView):
         if user_mfa:
             user_mfa.is_enabled = False
             user_mfa.encrypted_totp_secret = ""
-            user_mfa.save(update_fields=["is_enabled", "encrypted_totp_secret"])
+            user_mfa.last_used_step = 0
+            user_mfa.save(update_fields=["is_enabled", "encrypted_totp_secret", "last_used_step"])
 
         MFARecoveryCode.objects.filter(user=user).delete()
         MFAChallenge.objects.filter(user=user).delete()
@@ -514,6 +553,7 @@ class MFARecoveryRegenerateView(APIView):
     POST /api/v1/security/mfa/recovery-codes/regenerate/
     """
     permission_classes = [IsAuthenticated]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = MFARecoveryRegenerateSerializer(data=request.data)

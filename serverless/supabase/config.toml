@@ -1,0 +1,29 @@
+project_id = "125east"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[functions.test-connection]
+verify_jwt = true
+
+[functions.shopify-sync]
+verify_jwt = true
+
+[functions.razorpay-sync]
+verify_jwt = true
+
+[functions.meta-ads-sync]
+verify_jwt = true
+
+[functions.instagram-sync]
+verify_jwt = true
+
+[functions.webhook-shopify]
+verify_jwt = false
+
+[functions.webhook-razorpay]
+verify_jwt = false

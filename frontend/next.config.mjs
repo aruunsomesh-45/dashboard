@@ -22,9 +22,9 @@ const nextConfig = {
   },
   ...(isExport ? {} : {
     async rewrites() {
-      // On Vercel production, /api/* is handled by the dynamic catch-all Route Handler
-      // (src/app/api/[[...path]]/route.ts) to provide DNS fault tolerance and fallback routing.
-      if (process.env.VERCEL === "1") {
+      // In serverless architecture (and Vercel production), /api/* is handled by
+      // Supabase & Edge Functions. Only rewrite if explicitly enabled for legacy dev.
+      if (process.env.VERCEL === "1" || process.env.ENABLE_BACKEND_REWRITES !== "true") {
         return [];
       }
       return [

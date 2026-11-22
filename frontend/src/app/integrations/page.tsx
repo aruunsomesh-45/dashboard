@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { invokeEdgeFunction, ConnectionTestResult } from "@/lib/serverless";
 import {
   ShopifyLogo,
   RazorpayLogo,
@@ -28,6 +30,11 @@ import {
   Lock,
   ArrowRight,
   Settings,
+  HelpCircle,
+  Activity,
+  Zap,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface AppConnector {
@@ -72,29 +79,30 @@ const DEFAULT_APPS: AppConnector[] = [
     auth_type: "API Key & Webhook Secret",
     description: "Reconcile payments, authorization rates, refunds, and bank chargebacks/disputes with zero amount/name collisions.",
     fields: [
-      { label: "Key ID", placeholder: "rzp_live_xxxxxxxxxxxx", key: "key_id" },
+      { label: "Key ID", placeholder: "rzp_live_xxxxxxxxxxxxxxxx", key: "key_id" },
       { label: "Key Secret", placeholder: "xxxxxxxxxxxxxxxxxxxxxxxx", key: "key_secret", type: "password" },
-      { label: "Webhook Secret", placeholder: "rzp_wh_secret_xxxxxxx", key: "webhook_secret", type: "password" },
+      { label: "Webhook Secret", placeholder: "whsec_xxxxxxxxxxxxxxxxxx", key: "webhook_secret", type: "password" },
     ],
   },
   {
-    id: "shiprocket",
-    name: "Delhivery / Carrier Logistics",
+    id: "delhivery",
+    name: "Delhivery Logistics",
     provider: "shiprocket",
     category: "Logistics",
     status: "disconnected",
     account_identifier: "",
     last_synced_at: null,
     auth_type: "API Key & Webhook Secret",
-    description: "Real-time AWB tracking, NDR non-delivery action triggers, and RTO return tracking using canonical state machines.",
+    description: "Unified express fulfillment tracking, Non-Delivery Report (NDR) automation, and RTO return risk prediction.",
     fields: [
-      { label: "Client ID / Account Name", placeholder: "delhivery_merchant_acc", key: "client_id" },
-      { label: "API Token", placeholder: "Bearer token or API Secret", key: "api_token", type: "password" },
+      { label: "Client ID / Account Code", placeholder: "DLH_XXXXXX", key: "client_id" },
+      { label: "API Token", placeholder: "Bearer token from Delhivery Unified Portal", key: "api_token", type: "password" },
+      { label: "Webhook Secret Key", placeholder: "Secret key configured in Delhivery webhooks", key: "webhook_token", type: "password" },
     ],
   },
   {
     id: "meta_ads",
-    name: "Meta Ads (Facebook & Instagram)",
+    name: "Meta Ads",
     provider: "meta_ads",
     category: "Marketing",
     status: "disconnected",
@@ -129,18 +137,18 @@ export default function ConnectAppsPage() {
   const [apps, setApps] = useState<AppConnector[]>(
     DEFAULT_APPS.map((a) => ({ ...a, status: "disconnected", account_identifier: "", last_synced_at: null }))
   );
-  const [selectedApp, setSelectedApp] = useState<AppConnector | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [cardFormValues, setCardFormValues] = useState<Record<string, Record<string, string>>>({});
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [saving, setSaving] = useState<boolean>(false);
   const [savingCardId, setSavingCardId] = useState<string | null>(null);
-  const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [cardSaveNotice, setCardSaveNotice] = useState<Record<string, string>>({});
   const [cardSaveError, setCardSaveError] = useState<Record<string, string>>({});
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+
+  // Serverless Integration Testing State
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, ConnectionTestResult>>({});
+  const [showTestingConsole, setShowTestingConsole] = useState<boolean>(true);
 
   const loadIntegrations = async () => {
     if (!currentWorkspace || !currentBrand) return;
@@ -165,7 +173,7 @@ export default function ConnectAppsPage() {
         })
       );
     } catch {
-      // Keep current state if backend is unreachable
+      // Retain offline default state
     }
   };
 
@@ -180,7 +188,6 @@ export default function ConnectAppsPage() {
         next.delete(appId);
       } else {
         next.add(appId);
-        // Pre-fill card form values if account_identifier exists
         const app = apps.find((a) => a.id === appId);
         if (app && app.account_identifier) {
           setCardFormValues((prev) => ({
@@ -191,9 +198,56 @@ export default function ConnectAppsPage() {
       }
       return next;
     });
-    // Clear any card-level notices
     setCardSaveNotice((prev) => { const n = { ...prev }; delete n[appId]; return n; });
     setCardSaveError((prev) => { const n = { ...prev }; delete n[appId]; return n; });
+  };
+
+  /**
+   * Serverless API Connection Test
+   * Calls the `test-connection` Supabase Edge Function with credentials or provider id.
+   */
+  const handleTestConnection = async (app: AppConnector) => {
+    if (testingId) return;
+    setTestingId(app.id);
+
+    try {
+      if (!currentWorkspace || !currentBrand) {
+        throw new Error("No active workspace or brand selected.");
+      }
+
+      const activeValues = cardFormValues[app.id] || {};
+
+      // Invoke test-connection Edge Function
+      const result = await invokeEdgeFunction<ConnectionTestResult>("test-connection", {
+        provider: app.provider,
+        workspace_id: currentWorkspace.id,
+        brand_id: currentBrand.id,
+        credentials: Object.keys(activeValues).length > 0 ? activeValues : undefined,
+        account_identifier: app.account_identifier || activeValues[app.fields[0]?.key],
+      });
+
+      setTestResults((prev) => ({ ...prev, [app.id]: result }));
+
+      if (result.connection_status === "connected") {
+        setSyncNotice(`Connection test for ${app.name} passed in ${result.response_time}ms (HTTP ${result.http_status})!`);
+      } else {
+        setSyncNotice(`Connection test for ${app.name} failed: ${result.error_message || "Bad response"}`);
+      }
+    } catch (err: any) {
+      const failedResult: ConnectionTestResult = {
+        integration_name: app.provider,
+        connection_status: "failed",
+        http_status: 500,
+        response_time: 0,
+        last_tested_at: new Date().toISOString(),
+        records_fetched: 0,
+        error_message: err.message || "Failed to contact test-connection edge function",
+      };
+      setTestResults((prev) => ({ ...prev, [app.id]: failedResult }));
+      setSyncNotice(`Test failed: ${err.message}`);
+    } finally {
+      setTestingId(null);
+    }
   };
 
   const saveToBackend = async (app: AppConnector, values: Record<string, string>): Promise<string> => {
@@ -207,14 +261,29 @@ export default function ConnectAppsPage() {
       }),
     });
     let notice = `Credentials encrypted & stored for ${app.name}.`;
-    const syncPath = app.provider === "shopify" ? "shopify" : app.provider === "meta_ads" ? "marketing" : null;
-    if (syncPath) {
-      const syncRes = await apiFetch<{ message?: string }>(
-        `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/${syncPath}/sync-now/`,
-        { method: "POST" }
-      );
-      if (syncRes.message) notice = syncRes.message;
+
+    // Attempt live serverless sync
+    const syncFunc =
+      app.provider === "shopify"
+        ? "shopify-sync"
+        : app.provider === "meta_ads"
+        ? "meta-ads-sync"
+        : app.provider === "razorpay"
+        ? "razorpay-sync"
+        : null;
+
+    if (syncFunc) {
+      try {
+        await invokeEdgeFunction(syncFunc, {
+          workspace_id: currentWorkspace.id,
+          brand_id: currentBrand.id,
+        });
+        notice = `Connected and initial data synced via ${syncFunc}!`;
+      } catch {
+        // Non-blocking sync fallback
+      }
     }
+
     await loadIntegrations();
     return notice;
   };
@@ -239,62 +308,61 @@ export default function ConnectAppsPage() {
     }
   };
 
-  const handleOpenModal = (app: AppConnector) => {
-    setSelectedApp(app);
-    setFormValues(app.account_identifier ? { [app.fields[0].key]: app.account_identifier } : {});
-    setSaveNotice(null);
-    setSaveError(null);
-  };
-
   const handleTriggerSync = async (provider: string) => {
     if (syncingId) return;
     setSyncingId(provider);
     setSyncNotice(null);
+    const ws = currentWorkspace;
+    const br = currentBrand;
+    if (!ws || !br) throw new Error("No workspace or brand is selected.");
+
     try {
-      if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
-      if (provider === "shopify") {
-        const res = await apiFetch<{ message?: string; last_synced_at?: string }>(
-          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/shopify/sync-now/`,
-          { method: "POST" }
+      const functionName =
+        provider === "shopify"
+          ? "shopify-sync"
+          : provider === "razorpay"
+          ? "razorpay-sync"
+          : provider === "meta_ads"
+          ? "meta-ads-sync"
+          : provider === "instagram"
+          ? "instagram-sync"
+          : null;
+
+      if (functionName) {
+        const res = await invokeEdgeFunction<{ message?: string; records_processed?: number }>(
+          functionName,
+          { workspace_id: ws.id, brand_id: br.id }
         );
-        setSyncNotice(res.message || "Shopify sync completed.");
-        await loadIntegrations();
-      } else if (provider === "meta_ads") {
-        const res = await apiFetch<{ message?: string; last_synced_at?: string }>(
-          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/`,
-          { method: "POST" }
-        );
-        setSyncNotice(res.message || "Meta Ads sync completed.");
-        await loadIntegrations();
+        setSyncNotice(res.message || `${provider} sync completed via serverless function.`);
       } else {
-        setSyncNotice(`${provider.toUpperCase()} syncs automatically via webhooks; there is no manual sync endpoint.`);
+        setSyncNotice(`${provider.toUpperCase()} syncs automatically via webhooks.`);
       }
+      await loadIntegrations();
     } catch (err: any) {
-      setSyncNotice(`Sync failed: ${err.message || "Failed to trigger sync"}`);
+      // Fallback to proxy route
+      try {
+        if (provider === "shopify") {
+          const res = await apiFetch<{ message?: string }>(
+            `/api/w/${ws.slug}/b/${br.id}/shopify/sync-now/`,
+            { method: "POST" }
+          );
+          setSyncNotice(res.message || "Shopify sync completed.");
+        } else if (provider === "meta_ads") {
+          // Django has an equivalent session-authenticated endpoint (QA 2026-11-21).
+          const res = await apiFetch<{ message?: string }>(
+            `/api/w/${ws.slug}/b/${br.id}/marketing/sync-now/`,
+            { method: "POST" }
+          );
+          setSyncNotice(res.message || "Meta Ads sync completed.");
+        } else {
+          setSyncNotice(`Sync failed: ${err.message}`);
+        }
+      } catch {
+        setSyncNotice(`Sync failed: ${err.message || "Failed to trigger sync"}`);
+      }
       await loadIntegrations();
     } finally {
       setSyncingId(null);
-    }
-  };
-
-  const handleSaveCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedApp || saving) return;
-
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const notice = await saveToBackend(selectedApp, formValues);
-      setSaveNotice(notice);
-      setTimeout(() => {
-        setSelectedApp(null);
-        setSaveNotice(null);
-      }, 1500);
-    } catch (err: any) {
-      setSaveError(err.message || "Failed to save or sync credentials.");
-      await loadIntegrations().catch(() => undefined);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -347,7 +415,7 @@ export default function ConnectAppsPage() {
         );
       default:
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200">
+          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-charcoal-600 text-xs font-semibold border border-gray-200">
             <span className="w-2 h-2 rounded-full bg-gray-400" />
             <span>Not Connected</span>
           </span>
@@ -395,6 +463,13 @@ export default function ConnectAppsPage() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <Link
+              href="/guide"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-terracotta-50 hover:bg-terracotta-100 text-terracotta-700 border border-terracotta-200 rounded-lg text-xs font-semibold shadow-sm transition-colors"
+            >
+              <HelpCircle className="w-4 h-4 text-terracotta-600" />
+              <span>Setup Guide &amp; FAQs</span>
+            </Link>
             <div className="flex items-center space-x-2 px-3 py-1.5 bg-white border border-ivory-300 rounded-lg text-xs font-semibold text-charcoal-700 shadow-sm">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>
@@ -407,7 +482,7 @@ export default function ConnectAppsPage() {
         {syncNotice && (
           <div
             className={`p-3 rounded-xl border text-xs font-medium flex items-center justify-between ${
-              syncNotice.startsWith("Sync failed")
+              syncNotice.includes("failed") || syncNotice.includes("Error")
                 ? "bg-rose-50 border-rose-200 text-rose-700"
                 : "bg-emerald-50 border-emerald-200 text-emerald-800"
             }`}
@@ -422,6 +497,153 @@ export default function ConnectAppsPage() {
           </div>
         )}
 
+        {/* Phase 8: Integration Testing & Diagnostics Interface */}
+        <div className="bg-white rounded-xl border border-ivory-300 shadow-sm overflow-hidden">
+          <div
+            className="p-4 bg-ivory-50 border-b border-ivory-200 flex items-center justify-between cursor-pointer select-none"
+            onClick={() => setShowTestingConsole(!showTestingConsole)}
+          >
+            <div className="flex items-center space-x-2.5">
+              <div className="p-1.5 rounded-md bg-forest-900 text-ivory-100">
+                <Activity className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-charcoal-900">
+                  Serverless API Connection Testing &amp; Diagnostics
+                </h3>
+                <p className="text-[11px] text-charcoal-500">
+                  Direct live connection ping through the <code className="bg-ivory-200 px-1 py-0.5 rounded text-[10px]">test-connection</code> Edge Function.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 text-xs font-semibold text-charcoal-600">
+              <span>{showTestingConsole ? "Hide Diagnostics" : "Show Diagnostics"}</span>
+              {showTestingConsole ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
+          </div>
+
+          {showTestingConsole && (
+            <div className="divide-y divide-ivory-200">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-ivory-100/70 text-charcoal-600 font-semibold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="py-2.5 px-4">Platform</th>
+                      <th className="py-2.5 px-4">Connection Status</th>
+                      <th className="py-2.5 px-4">Latency</th>
+                      <th className="py-2.5 px-4">Records Fetched</th>
+                      <th className="py-2.5 px-4">Last Tested</th>
+                      <th className="py-2.5 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-ivory-100 text-charcoal-700">
+                    {apps.map((app) => {
+                      const testRes = testResults[app.id];
+                      const isTesting = testingId === app.id;
+
+                      return (
+                        <tr key={`test-${app.id}`} className="hover:bg-ivory-50/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center space-x-2.5">
+                              <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                                {getProviderIcon(app.provider, "w-5 h-5")}
+                              </div>
+                              <span className="font-bold text-charcoal-900">{app.name}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            {testRes ? (
+                              testRes.connection_status === "connected" ? (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[11px] border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Passed ({testRes.http_status})</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold text-[11px] border border-rose-200">
+                                  <AlertCircle className="w-3 h-3" />
+                                  <span>Failed ({testRes.http_status})</span>
+                                </span>
+                              )
+                            ) : (
+                              getStatusBadge(app.status)
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 font-mono text-[11px]">
+                            {testRes?.response_time ? (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  testRes.response_time < 300
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : testRes.response_time < 800
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-rose-100 text-rose-800"
+                                }`}
+                              >
+                                {testRes.response_time} ms
+                              </span>
+                            ) : (
+                              <span className="text-charcoal-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 font-mono text-[11px]">
+                            {testRes?.records_fetched !== undefined ? (
+                              <span className="font-bold text-charcoal-900">{testRes.records_fetched}</span>
+                            ) : (
+                              <span className="text-charcoal-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-charcoal-500 text-[11px]">
+                            {testRes?.last_tested_at ? (
+                              new Date(testRes.last_tested_at).toLocaleTimeString()
+                            ) : app.last_synced_at ? (
+                              new Date(app.last_synced_at).toLocaleTimeString()
+                            ) : (
+                              <span className="text-charcoal-400">Not tested</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={() => handleTestConnection(app)}
+                              disabled={isTesting}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1 bg-ivory-100 hover:bg-forest-900 hover:text-white border border-ivory-300 rounded font-semibold text-[11px] text-charcoal-800 transition-colors disabled:opacity-50"
+                            >
+                              <Zap className={`w-3 h-3 ${isTesting ? "animate-spin text-terracotta-500" : ""}`} />
+                              <span>{isTesting ? "Testing..." : "Test Connection"}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Show error diagnostics if any test failed */}
+              {Object.entries(testResults).some(([_, r]) => r.connection_status === "failed") && (
+                <div className="p-3 bg-rose-50/70 border-t border-rose-200 text-xs text-rose-800 space-y-1">
+                  <div className="font-bold flex items-center space-x-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Diagnostics Error Details:</span>
+                  </div>
+                  {Object.entries(testResults)
+                    .filter(([_, r]) => r.connection_status === "failed")
+                    .map(([appId, r]) => (
+                      <div key={appId} className="pl-5 text-[11px] font-mono">
+                        <strong>{appId.toUpperCase()}:</strong> {r.error_message}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Security & Envelope Encryption Guarantee Banner */}
         <div className="p-4 rounded-xl bg-forest-900 text-ivory-100 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-forest-800">
           <div className="flex items-start space-x-3">
@@ -429,14 +651,14 @@ export default function ConnectAppsPage() {
               <Lock className="w-4 h-4" />
             </div>
             <div className="text-xs space-y-0.5">
-              <div className="font-bold text-white text-sm">Envelope Encryption Active</div>
+              <div className="font-bold text-white text-sm">Serverless AES-256-GCM Envelope Encryption</div>
               <p className="text-ivory-300 leading-relaxed">
-                Tokens and webhook secrets are encrypted with per-brand Data Encryption Keys (AES-256-GCM) before being stored in Postgres. Queries are isolated by Row-Level Security (RLS).
+                Tokens and webhook secrets are encrypted with per-brand Data Encryption Keys before being stored in PostgreSQL. Edge Functions process calls with Row-Level Security (RLS).
               </p>
             </div>
           </div>
           <span className="text-[11px] font-mono text-emerald-300 bg-forest-800 px-2.5 py-1 rounded border border-forest-700 flex-shrink-0">
-            Tenant: {currentWorkspace?.slug}
+            Tenant: {currentWorkspace?.slug || "default"}
           </span>
         </div>
 
@@ -448,246 +670,191 @@ export default function ConnectAppsPage() {
             const cardNotice = cardSaveNotice[app.id];
             const cardError = cardSaveError[app.id];
             const isSavingThis = savingCardId === app.id;
+            const isTestingThis = testingId === app.id;
 
             return (
-            <div
-              key={app.id}
-              className="bg-white rounded-xl border border-ivory-300 shadow-sm p-6 space-y-4 hover:border-terracotta-400 transition-colors flex flex-col justify-between"
-            >
-              <div className="space-y-3">
-                {/* Card Header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-ivory-100 border border-ivory-200 flex items-center justify-center p-2 flex-shrink-0 shadow-sm">
-                      {getProviderIcon(app.provider, "w-8 h-8")}
-                    </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h3 className="text-base font-bold text-charcoal-900">{app.name}</h3>
-                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-ivory-100 text-charcoal-600">
-                          {app.category}
-                        </span>
+              <div
+                key={app.id}
+                className="bg-white rounded-xl border border-ivory-300 shadow-sm p-6 space-y-4 hover:border-terracotta-400 transition-colors flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  {/* Card Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-12 h-12 rounded-xl bg-ivory-100 border border-ivory-200 flex items-center justify-center p-2 flex-shrink-0 shadow-sm">
+                        {getProviderIcon(app.provider, "w-8 h-8")}
                       </div>
-                      <p className="text-xs text-charcoal-500 font-mono mt-0.5">
-                        {app.account_identifier || "Not connected"}
-                      </p>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="text-base font-bold text-charcoal-900">{app.name}</h3>
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-ivory-100 text-charcoal-600">
+                            {app.category}
+                          </span>
+                        </div>
+                        <p className="text-xs text-charcoal-500 font-mono mt-0.5">
+                          {app.account_identifier || "Not connected"}
+                        </p>
+                      </div>
                     </div>
+
+                    <div>{getStatusBadge(app.status)}</div>
                   </div>
 
-                  <div>{getStatusBadge(app.status)}</div>
+                  {/* Description */}
+                  <p className="text-xs text-charcoal-600 leading-relaxed">{app.description}</p>
                 </div>
 
-                {/* Description */}
-                <p className="text-xs text-charcoal-600 leading-relaxed">{app.description}</p>
-              </div>
-
-              {/* Inline Credential Form (always expandable) */}
-              {isExpanded && (
-                <div className="border-t border-ivory-200 pt-4 space-y-3 animate-in slide-in-from-top-2 fade-in duration-150">
-                  {cardNotice ? (
-                    <div className="p-4 text-center space-y-2">
-                      <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                        <CheckCircle2 className="w-5 h-5" />
-                      </div>
-                      <div className="text-xs font-bold text-charcoal-900">{cardNotice}</div>
-                    </div>
-                  ) : (
-                    <>
-                      {cardError && (
-                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start space-x-2 text-xs">
-                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-rose-600" />
-                          <span>{cardError}</span>
+                {/* Inline Credential Form */}
+                {isExpanded && (
+                  <div className="border-t border-ivory-200 pt-4 space-y-3 animate-in slide-in-from-top-2 fade-in duration-150">
+                    {cardNotice ? (
+                      <div className="p-4 text-center space-y-2">
+                        <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                          <CheckCircle2 className="w-5 h-5" />
                         </div>
-                      )}
-
-                      {app.fields.map((f) => (
-                        <div key={f.key} className="space-y-1">
-                          <label className="text-xs font-semibold text-charcoal-800">{f.label}</label>
-                          <input
-                            type={f.type || "text"}
-                            placeholder={f.placeholder}
-                            value={cardValues[f.key] || ""}
-                            onChange={(e) =>
-                              setCardFormValues((prev) => ({
-                                ...prev,
-                                [app.id]: { ...prev[app.id], [f.key]: e.target.value },
-                              }))
-                            }
-                            className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-terracotta-500"
-                          />
-                        </div>
-                      ))}
-
-                      <div className="text-[11px] text-charcoal-500 flex items-center space-x-1.5">
-                        <Lock className="w-3 h-3 text-emerald-600" />
-                        <span>Keys are encrypted with AES-256-GCM before saving.</span>
+                        <div className="text-xs font-bold text-charcoal-900">{cardNotice}</div>
                       </div>
+                    ) : (
+                      <>
+                        {cardError && (
+                          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start space-x-2 text-xs">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-rose-600" />
+                            <span>{cardError}</span>
+                          </div>
+                        )}
 
-                      <div className="flex items-center justify-end space-x-2 pt-1">
+                        {app.fields.map((f) => (
+                          <div key={f.key} className="space-y-1">
+                            <label className="text-xs font-semibold text-charcoal-800">{f.label}</label>
+                            <input
+                              type={f.type || "text"}
+                              placeholder={f.placeholder}
+                              value={cardValues[f.key] || ""}
+                              onChange={(e) =>
+                                setCardFormValues((prev) => ({
+                                  ...prev,
+                                  [app.id]: { ...prev[app.id], [f.key]: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-terracotta-500"
+                            />
+                          </div>
+                        ))}
+
+                        <div className="text-[11px] text-charcoal-500 flex items-center space-x-1.5">
+                          <Lock className="w-3 h-3 text-emerald-600" />
+                          <span>Credentials are encrypted via AES-256-GCM before storage.</span>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleTestConnection(app)}
+                            disabled={isTestingThis || app.fields.some((f) => !(cardValues[f.key]?.trim()))}
+                            className="inline-flex items-center space-x-1 px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-800 text-xs font-semibold transition-colors disabled:opacity-40"
+                          >
+                            <Zap className={`w-3.5 h-3.5 ${isTestingThis ? "animate-spin text-terracotta-500" : ""}`} />
+                            <span>{isTestingThis ? "Testing..." : "Test Keys"}</span>
+                          </button>
+
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleCardExpand(app.id)}
+                              className="px-3 py-1.5 border border-ivory-300 rounded-lg text-charcoal-700 text-xs font-semibold hover:bg-ivory-50 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleCardSaveCredentials(app)}
+                              disabled={isSavingThis || app.fields.some((f) => !(cardValues[f.key]?.trim()))}
+                              className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg text-xs font-semibold transition-colors shadow-sm disabled:opacity-50"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                              <span>{isSavingThis ? "Saving..." : "Save & Connect"}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Footer */}
+                <div className="pt-4 border-t border-ivory-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="text-charcoal-400 text-[11px]">
+                    {app.last_synced_at ? (
+                      <span>
+                        Synced {new Date(app.last_synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    ) : (
+                      <span>Awaiting initial sync</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleTestConnection(app)}
+                      disabled={isTestingThis}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors text-xs disabled:opacity-50"
+                      title="Run live API connection test"
+                    >
+                      <Zap className={`w-3 h-3 ${isTestingThis ? "animate-spin text-terracotta-500" : ""}`} />
+                      <span>{isTestingThis ? "Testing..." : "Test"}</span>
+                    </button>
+
+                    {(app.status === "connected" || app.status === "syncing" || app.status === "token_expiring" || app.status === "error") && (
+                      <>
                         <button
-                          type="button"
+                          onClick={() => handleTriggerSync(app.provider)}
+                          disabled={syncingId === app.provider}
+                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${syncingId === app.provider ? "animate-spin text-terracotta-500" : ""}`} />
+                          <span>{syncingId === app.provider ? "Syncing..." : "Sync"}</span>
+                        </button>
+
+                        <button
                           onClick={() => toggleCardExpand(app.id)}
-                          className="px-3 py-1.5 border border-ivory-300 rounded-lg text-charcoal-700 text-xs font-semibold hover:bg-ivory-50 transition-colors"
+                          className="px-3 py-1.5 bg-white hover:bg-ivory-50 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors"
                         >
-                          Cancel
+                          {isExpanded ? "Close" : "Configure"}
                         </button>
+
                         <button
-                          type="button"
-                          onClick={() => handleCardSaveCredentials(app)}
-                          disabled={isSavingThis || app.fields.some((f) => !(cardValues[f.key]?.trim()))}
-                          className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg text-xs font-semibold transition-colors shadow-sm disabled:opacity-50"
+                          onClick={() => handleDisconnect(app)}
+                          className="text-red-600 hover:underline px-2 text-[11px]"
                         >
-                          <Key className="w-3.5 h-3.5" />
-                          <span>{isSavingThis ? "Connecting & Syncing..." : "Save & Connect"}</span>
+                          Disconnect
                         </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                      </>
+                    )}
 
-              {/* Action Footer */}
-              <div className="pt-4 border-t border-ivory-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="text-charcoal-400 text-[11px]">
-                  {app.last_synced_at ? (
-                    <span>
-                      Synced {new Date(app.last_synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  ) : (
-                    <span>Awaiting initial sync</span>
-                  )}
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  {(app.status === "connected" || app.status === "syncing" || app.status === "token_expiring" || app.status === "error") && (
-                    <>
-                      <button
-                        onClick={() => handleTriggerSync(app.provider)}
-                        disabled={syncingId === app.provider}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${syncingId === app.provider ? "animate-spin text-terracotta-500" : ""}`} />
-                        <span>{syncingId === app.provider ? "Syncing..." : "Sync"}</span>
-                      </button>
-
+                    {app.status === "disconnected" && !isExpanded && (
                       <button
                         onClick={() => toggleCardExpand(app.id)}
-                        className="px-3 py-1.5 bg-white hover:bg-ivory-50 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors"
+                        className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg font-semibold transition-colors shadow-sm"
                       >
-                        {isExpanded ? "Close" : "Configure"}
+                        <PlugZap className="w-3.5 h-3.5" />
+                        <span>Connect {app.name}</span>
                       </button>
+                    )}
 
+                    {app.status === "disconnected" && isExpanded && (
                       <button
-                        onClick={() => handleDisconnect(app)}
-                        className="text-red-600 hover:underline px-2 text-[11px]"
+                        onClick={() => toggleCardExpand(app.id)}
+                        className="px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors text-xs"
                       >
-                        Disconnect
+                        Close
                       </button>
-                    </>
-                  )}
-
-                  {app.status === "disconnected" && !isExpanded && (
-                    <button
-                      onClick={() => toggleCardExpand(app.id)}
-                      className="inline-flex items-center space-x-1.5 px-4 py-1.5 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg font-semibold transition-colors shadow-sm"
-                    >
-                      <PlugZap className="w-3.5 h-3.5" />
-                      <span>Connect {app.name}</span>
-                    </button>
-                  )}
-
-                  {app.status === "disconnected" && isExpanded && (
-                    <button
-                      onClick={() => toggleCardExpand(app.id)}
-                      className="px-3 py-1.5 bg-ivory-100 hover:bg-ivory-200 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold transition-colors text-xs"
-                    >
-                      Close
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
             );
           })}
         </div>
-
-        {/* Configuration Modal */}
-        {selectedApp && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl border border-ivory-300 shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-6 border-b border-ivory-200 flex items-center justify-between">
-                <div className="flex items-center space-x-3.5">
-                  <div className="w-12 h-12 rounded-xl bg-ivory-100 flex items-center justify-center p-2 border border-ivory-200 shadow-sm">
-                    {getProviderIcon(selectedApp.provider, "w-8 h-8")}
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-charcoal-900">Configure {selectedApp.name}</h3>
-                    <p className="text-xs text-charcoal-500">{selectedApp.auth_type} credentials</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedApp(null)}
-                  className="text-charcoal-400 hover:text-charcoal-700 text-sm font-bold p-1"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {saveNotice ? (
-                <div className="p-8 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <div className="text-sm font-bold text-charcoal-900">{saveNotice}</div>
-                </div>
-              ) : (
-                <form onSubmit={handleSaveCredentials} className="p-6 space-y-4 text-xs">
-                  {saveError && (
-                    <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-start space-x-2">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-rose-600" />
-                      <span>{saveError}</span>
-                    </div>
-                  )}
-                  {selectedApp.fields.map((f) => (
-                    <div key={f.key} className="space-y-1.5">
-                      <label className="font-semibold text-charcoal-800">{f.label}</label>
-                      <input
-                        type={f.type || "text"}
-                        required
-                        placeholder={f.placeholder}
-                        value={formValues[f.key] || ""}
-                        onChange={(e) => setFormValues({ ...formValues, [f.key]: e.target.value })}
-                        className="w-full px-3 py-2 border border-ivory-300 rounded-lg bg-ivory-50 text-charcoal-800 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-terracotta-500"
-                      />
-                    </div>
-                  ))}
-
-                  <div className="pt-2 text-[11px] text-charcoal-500 flex items-center space-x-1.5">
-                    <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Keys are encrypted with AES-256-GCM before saving.</span>
-                  </div>
-
-                  <div className="pt-4 flex items-center justify-end space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedApp(null)}
-                      className="px-4 py-2 border border-ivory-300 rounded-lg text-charcoal-700 font-semibold hover:bg-ivory-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="px-4 py-2 bg-forest-900 hover:bg-forest-800 text-ivory-100 rounded-lg font-semibold transition-colors shadow-sm disabled:opacity-50"
-                    >
-                      {saving ? "Connecting & Syncing..." : "Save & Connect"}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </DashboardShell>
   );

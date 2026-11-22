@@ -6,6 +6,12 @@
  * The source of truth is the Django session (HTTP-only `sessionid` cookie, validated on every API call).
  * This context only mirrors `GET /api/auth/me` so pages can render the user and their workspaces.
  * No passwords or tokens are ever kept in JS memory beyond the submit call, nor in localStorage.
+ *
+ * QA 2026-11-21: restored after an uncommitted switch to Supabase Auth (`supabase.auth.signInWithPassword`)
+ * that skipped the Google Authenticator step entirely and left fresh browsers unable to reach the dashboard
+ * (session in localStorage, while middleware and every dashboard API rely on the Django session cookie).
+ * The super-admin / module-permission additions from that work are kept: `isSuperAdmin` comes from the
+ * server-verified Django user; `modules` are UI hints only (enforcement is server-side).
  */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -27,6 +33,9 @@ interface AuthContextType {
   currentWorkspace: Workspace | null;
   currentBrand: Brand | null;
   isLoading: boolean;
+  isSuperAdmin: boolean;
+  modules: Record<string, boolean>;
+  hasModule: (moduleKey: string) => boolean;
   setCurrentWorkspace: (workspace: Workspace) => void;
   setCurrentBrand: (brand: Brand) => void;
   refreshAuth: () => Promise<void>;
@@ -39,6 +48,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Remembers which workspace/brand the user last looked at. A UI preference only, never a credential.
 const PREF_KEY = "dashboard:selection";
+
+const DEFAULT_MODULES: Record<string, boolean> = {
+  shopify: true,
+  razorpay: true,
+  delivery: true,
+  meta_ads: true,
+  instagram: true,
+};
 
 function readPref(): { ws?: string; brand?: string } {
   try {
@@ -83,6 +100,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentWorkspace, setCurrentWorkspaceState] = useState<Workspace | null>(null);
   const [currentBrand, setCurrentBrandState] = useState<Brand | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [modules, setModules] = useState<Record<string, boolean>>(DEFAULT_MODULES);
+  const isSuperAdmin = Boolean(user?.is_superuser);
+
+  const hasModule = useCallback(
+    (moduleKey: string) => isSuperAdmin || modules[moduleKey] !== false,
+    [isSuperAdmin, modules]
+  );
 
   const router = useRouter();
   const pathname = usePathname() || "/";
@@ -94,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setWorkspaces([]);
     setCurrentWorkspaceState(null);
     setCurrentBrandState(null);
+    setModules(DEFAULT_MODULES);
   }, []);
 
   /** Apply a {user, workspaces} payload and pick the active workspace/brand (last used, else first). */
@@ -235,6 +260,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentWorkspace,
         currentBrand,
         isLoading,
+        isSuperAdmin,
+        modules,
+        hasModule,
         setCurrentWorkspace,
         setCurrentBrand,
         refreshAuth,

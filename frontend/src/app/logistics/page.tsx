@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ModuleGuard } from "@/components/auth/ModuleGuard";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch, apiFetchWithStatus } from "@/lib/api";
 import { DelhiveryLogo } from "@/components/icons/AppLogos";
@@ -109,7 +110,8 @@ export default function LogisticsPage() {
 
   return (
     <DashboardShell>
-      <div className="space-y-6 font-sans">
+      <ModuleGuard moduleKey="delivery" moduleName="Logistics & Delivery">
+        <div className="space-y-6 font-sans">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-ivory-300">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center p-1.5 flex-shrink-0">
@@ -257,7 +259,8 @@ export default function LogisticsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </ModuleGuard>
     </DashboardShell>
   );
 }

@@ -12,6 +12,7 @@ from apps.integrations.crypto import encrypt_credentials
 from apps.integrations.models import Integration, WebhookEvent
 
 SHOPIFY_SECRET = "shopify-test-secret"
+SHOP_DOMAIN = "test-store.myshopify.com"
 RZP_SECRET = "razorpay-test-secret"
 
 
@@ -27,8 +28,21 @@ def rzp_sig(body: bytes, secret=RZP_SECRET):
 def shopify_integration(workspace_a, brand_a):
     return Integration.objects.create(
         workspace=workspace_a, brand=brand_a, provider="shopify", status="connected",
-        encrypted_credentials=encrypt_credentials({"api_secret": SHOPIFY_SECRET}),
+        encrypted_credentials=encrypt_credentials({"api_secret": SHOPIFY_SECRET, "shop_domain": SHOP_DOMAIN}),
     )
+
+
+@pytest.fixture(autouse=True)
+def run_on_commit_immediately(request, monkeypatch):
+    """Webhook processing is scheduled with transaction.on_commit, which never fires inside a pytest-django
+    test transaction. Run the callback right away so the tests observe the processed business records.
+    Tests that need real commit semantics use django_db(transaction=True) and are left alone."""
+    from django.db import transaction
+
+    marker = request.node.get_closest_marker("django_db")
+    if marker and marker.kwargs.get("transaction"):
+        return
+    monkeypatch.setattr(transaction, "on_commit", lambda fn, using=None, robust=False: fn())
 
 
 @pytest.fixture
@@ -54,7 +68,8 @@ class TestShopifyWebhook:
         return f"/api/webhooks/shopify/{brand.id}/"
 
     def post(self, brand, body, sig=None, webhook_id="wh-1"):
-        headers = {"HTTP_X_SHOPIFY_TOPIC": "orders/create", "HTTP_X_SHOPIFY_WEBHOOK_ID": webhook_id}
+        headers = {"HTTP_X_SHOPIFY_TOPIC": "orders/create", "HTTP_X_SHOPIFY_WEBHOOK_ID": webhook_id,
+                   "HTTP_X_SHOPIFY_SHOP_DOMAIN": SHOP_DOMAIN}
         if sig is not None:
             headers["HTTP_X_SHOPIFY_HMAC_SHA256"] = sig
         return APIClient().post(self.url(brand), data=body, content_type="application/json", **headers)
@@ -96,7 +111,8 @@ class TestShopifyWebhook:
     def test_same_body_without_webhook_id_is_still_idempotent(self, brand_a, shopify_integration):
         body = json.dumps(ORDER).encode()
         sig = shopify_sig(body)
-        headers = {"HTTP_X_SHOPIFY_HMAC_SHA256": sig, "HTTP_X_SHOPIFY_TOPIC": "orders/create"}
+        headers = {"HTTP_X_SHOPIFY_HMAC_SHA256": sig, "HTTP_X_SHOPIFY_TOPIC": "orders/create",
+                   "HTTP_X_SHOPIFY_SHOP_DOMAIN": SHOP_DOMAIN}
         for _ in range(2):
             APIClient().post(self.url(brand_a), data=body, content_type="application/json", **headers)
         assert WebhookEvent.objects.count() == 1
@@ -179,3 +195,53 @@ class TestRazorpayWebhook:
 def test_delhivery_webhook_is_not_a_fake_accept(brand_a):
     res = APIClient().post(f"/api/webhooks/delhivery/{brand_a.id}/", {"awb": "X"}, format="json")
     assert res.status_code == 501
+
+
+@pytest.mark.django_db(transaction=True)
+class TestWebhookRetryRecovery:
+    """QA 2026-11-21: a delivery whose processing failed must be re-processed on the provider's retry,
+    not answered as a 'duplicate' (which silently lost the order/payment)."""
+
+    def test_failed_processing_then_retry_persists_payment(self, brand_a, rzp_integration, monkeypatch):
+        from apps.integrations import tasks
+
+        body = json.dumps({"event": "payment.captured", "payload": {"payment": {"entity": {
+            "id": "pay_RETRY1", "amount": 50000, "currency": "INR", "status": "captured",
+            "method": "card", "order_id": "order_R", "created_at": 1790000000}}}}).encode()
+        headers = {"HTTP_X_RAZORPAY_EVENT_ID": "evt_retry", "HTTP_X_RAZORPAY_SIGNATURE": rzp_sig(body)}
+        real = tasks.process_webhook_event
+        outage = {"on": True}  # Celery eager mode retries inline, so keep failing for the whole first request
+
+        def flaky(event_id):
+            if outage["on"]:
+                raise RuntimeError("simulated database outage")
+            return real(event_id)
+
+        monkeypatch.setattr(tasks, "process_webhook_event", flaky)
+        client = APIClient(raise_request_exception=False)
+        first = client.post(f"/api/webhooks/razorpay/{brand_a.id}/", data=body, content_type="application/json", **headers)
+        assert first.status_code == 500  # provider will retry
+        assert not PaymentAttempt.objects.filter(provider_id="pay_RETRY1").exists()
+        ev = WebhookEvent.objects.get(provider="razorpay")
+        assert ev.processed is False
+
+        outage["on"] = False
+        second = client.post(f"/api/webhooks/razorpay/{brand_a.id}/", data=body, content_type="application/json", **headers)
+        assert second.status_code == 200 and second.json()["status"] == "retrying"
+        assert PaymentAttempt.objects.filter(brand=brand_a, provider_id="pay_RETRY1").count() == 1
+        ev.refresh_from_db()
+        assert ev.processed is True
+
+        third = client.post(f"/api/webhooks/razorpay/{brand_a.id}/", data=body, content_type="application/json", **headers)
+        assert third.json()["status"] == "duplicate"
+        assert PaymentAttempt.objects.filter(provider_id="pay_RETRY1").count() == 1
+
+
+@pytest.mark.django_db
+def test_shopify_webhook_from_another_shop_is_rejected(brand_a, shopify_integration):
+    body = json.dumps(ORDER).encode()
+    res = APIClient().post(f"/api/webhooks/shopify/{brand_a.id}/", data=body, content_type="application/json",
+                           HTTP_X_SHOPIFY_HMAC_SHA256=shopify_sig(body), HTTP_X_SHOPIFY_TOPIC="orders/create",
+                           HTTP_X_SHOPIFY_SHOP_DOMAIN="evil-store.myshopify.com")
+    assert res.status_code == 401
+    assert not Order.objects.exists()

@@ -33,14 +33,60 @@ def encrypt_totp_secret(raw_secret: str) -> str:
 
 
 def decrypt_totp_secret(encrypted_secret: str) -> str:
-    """Decrypts an encrypted TOTP secret."""
+    """Decrypts an encrypted TOTP secret.
+
+    A value that is a Fernet token but fails to decrypt (wrong/rotated key, tampering) yields "" so
+    verification fails closed. Previously the ciphertext itself was returned and used as the TOTP
+    secret, which made pyotp raise on invalid base32 (HTTP 500) instead of a clean rejection.
+    Legacy plaintext base32 secrets (pre-encryption rows) are still returned unchanged.
+    """
     if not encrypted_secret:
         return ""
     try:
         return _get_mfa_cipher().decrypt(encrypted_secret.encode()).decode()
     except Exception:
-        # Fallback if secret was previously unencrypted
+        if encrypted_secret.startswith("gAAAAA"):
+            import logging
+
+            logging.getLogger(__name__).error("mfa_secret_decrypt_failed")
+            return ""
         return encrypted_secret
+
+
+# ---------------------------------------------------------------------------
+# Per-account brute-force protection for the second factor.
+# The IP-based DRF throttle alone is not enough: X-Forwarded-For is client-controlled when the API is
+# reachable directly, and an attacker who knows the password can mint unlimited MFA challenges.
+# ---------------------------------------------------------------------------
+MFA_MAX_FAILURES = 10
+MFA_LOCKOUT_SECONDS = 15 * 60
+
+
+def _mfa_fail_key(user) -> str:
+    return f"mfa_fail:{user.pk}"
+
+
+def mfa_is_locked(user) -> bool:
+    from django.core.cache import cache
+
+    return int(cache.get(_mfa_fail_key(user), 0) or 0) >= MFA_MAX_FAILURES
+
+
+def record_mfa_failure(user) -> None:
+    from django.core.cache import cache
+
+    key = _mfa_fail_key(user)
+    cache.add(key, 0, timeout=MFA_LOCKOUT_SECONDS)
+    try:
+        cache.incr(key)
+    except ValueError:  # expired between add and incr
+        cache.set(key, 1, timeout=MFA_LOCKOUT_SECONDS)
+
+
+def clear_mfa_failures(user) -> None:
+    from django.core.cache import cache
+
+    cache.delete(_mfa_fail_key(user))
 
 
 def check_have_i_been_pwned(password: str) -> bool:
@@ -128,7 +174,9 @@ def verify_totp_with_anti_replay(user: User, secret: str, code: str) -> bool:
     if matched_step is None:
         matched_step = current_step
 
-    replay_key = f"mfa_step:{user.id}:{matched_step}"
+    # Replay state is per SECRET: a freshly enrolled authenticator must not be blocked by steps used with the old one.
+    secret_tag = hashlib.sha256(secret.encode()).hexdigest()[:16]
+    replay_key = f"mfa_step:{user.id}:{secret_tag}:{matched_step}"
     if cache.get(replay_key):
         return False
 

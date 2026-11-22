@@ -1,4 +1,8 @@
 import pytest
+# Import before any test freezes the clock: DRF binds SimpleRateThrottle.timer = time.time at import time, and if
+# that first import happens inside freezegun.freeze_time the throttle keeps freezegun's fake function forever
+# (TypeError in every later throttled request). Test-harness issue only. QA 2026-11-21.
+import rest_framework.throttling  # noqa: F401,E402
 from apps.accounts.models import User
 from apps.tenancy.models import Brand, Workspace, WorkspaceMember
 from rest_framework.test import APIClient

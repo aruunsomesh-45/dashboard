@@ -58,7 +58,7 @@ function LoginContent() {
       {notice && <FormAlert kind="success">{notice}</FormAlert>}
       {error && <FormAlert>{error}</FormAlert>}
 
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <form onSubmit={handleSubmit} method="POST" className="space-y-4" noValidate>
         <Field
           id="email"
           label="Email address"

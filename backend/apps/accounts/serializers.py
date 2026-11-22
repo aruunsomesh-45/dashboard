@@ -107,4 +107,5 @@ class MFASetupConfirmSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "mfa_enabled", "created_at"]
+        fields = ["id", "email", "first_name", "last_name", "mfa_enabled", "is_superuser", "created_at"]
+        read_only_fields = fields

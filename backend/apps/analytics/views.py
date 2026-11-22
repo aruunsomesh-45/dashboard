@@ -38,14 +38,16 @@ class MetricsQueryAPIView(APIView):
         if days > 0:
             order_qs = order_qs.filter(Q(source_created_at__gte=since) | Q(source_created_at__isnull=True))
 
-        order_aggs = order_qs.aggregate(
+        # Cancelled orders are not sales (QA 2026-11-21): exclude them from every revenue/order metric.
+        order_aggs = order_qs.filter(cancelled_at__isnull=True).aggregate(
             gross=Sum("gross_amount"),
             disc=Sum("discount_amount"),
             tax=Sum("tax_amount"),
             ship=Sum("shipping_amount"),
             net=Sum("net_sales"),
             total_orders=Count("id"),
-            unfulfilled=Count("id", filter=Q(fulfillment_status="unfulfilled")),
+            # feeds `paid_unfulfilled_orders` / "Orders to be shipped": unpaid (pending) orders are not shippable
+            unfulfilled=Count("id", filter=Q(fulfillment_status="unfulfilled", financial_status="paid")),
             fulfilled=Count("id", filter=Q(fulfillment_status="fulfilled")),
         )
 

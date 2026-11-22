@@ -154,8 +154,19 @@ class BaseWebhookView(APIView):
                 },
             )
             if not created:
+                if event.processed:
+                    return Response(
+                        {"status": "duplicate", "message": "Event already processed."},
+                        status=status.HTTP_200_OK,
+                    )
+                # Stored earlier but processing failed (or never ran): the provider's retry is our chance
+                # to recover. Previously this branch answered "duplicate" and the order/payment was lost.
+                logger.warning("Reprocessing unprocessed %s webhook event %s", self.slug, event.event_id)
+                transaction.on_commit(
+                    lambda: process_webhook_event_task.apply_async(args=[str(event.id)])
+                )
                 return Response(
-                    {"status": "duplicate", "message": "Event already processed."},
+                    {"status": "retrying", "event_id": event.event_id},
                     status=status.HTTP_200_OK,
                 )
 

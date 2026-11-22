@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ModuleGuard } from "@/components/auth/ModuleGuard";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { MetaAdsLogo, InstagramLogo } from "@/components/icons/AppLogos";
@@ -140,7 +141,8 @@ export default function MarketingPage() {
 
   return (
     <DashboardShell>
-      <div className="space-y-6">
+      <ModuleGuard moduleKey="meta_ads" moduleName="Meta Ads Intelligence">
+        <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
           <div>
@@ -482,7 +484,8 @@ export default function MarketingPage() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </ModuleGuard>
     </DashboardShell>
   );
 }

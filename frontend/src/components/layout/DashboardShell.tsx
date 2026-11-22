@@ -20,17 +20,27 @@ import {
   Tag,
   ReceiptText,
   PlugZap,
+  Boxes,
+  Award,
+  ShieldAlert,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
-const navItems = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  module?: string;
+}
+
+const navItems: NavItem[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "P&L Statement", href: "/pnl", icon: ReceiptText },
   { name: "Connect Apps", href: "/integrations", icon: PlugZap },
-  { name: "Shopify Store", href: "/shopify", icon: ShoppingBag },
-  { name: "Marketing & Ads", href: "/marketing", icon: Megaphone },
-  { name: "Payments", href: "/payments", icon: CreditCard },
-  { name: "Logistics", href: "/logistics", icon: Truck },
+  { name: "Shopify Store", href: "/shopify", icon: ShoppingBag, module: "shopify" },
+  { name: "Marketing & Ads", href: "/marketing", icon: Megaphone, module: "meta_ads" },
+  { name: "Payments", href: "/payments", icon: CreditCard, module: "razorpay" },
+  { name: "Logistics", href: "/logistics", icon: Truck, module: "delivery" },
   { name: "Team & Access", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -46,6 +56,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     logout,
     refreshAuth,
     isLoading,
+    isSuperAdmin,
+    hasModule,
   } = useAuth();
 
   const pathname = usePathname();
@@ -76,10 +88,32 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Route guard: nothing from a protected page renders until the server confirms the session.
   // (AuthContext performs the redirect to /login; this prevents a flash of protected UI.)
-  if (isLoading || !user) {
+  if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-ivory-100 font-sans" role="status" aria-live="polite">
-        <div className="text-xs text-charcoal-500">Verifying your session…</div>
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-6 h-6 border-2 border-forest-900 border-t-transparent rounded-full animate-spin" />
+          <div className="text-xs text-charcoal-500 font-medium">Verifying your session…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-ivory-100 font-sans" role="status" aria-live="polite">
+        <div className="flex flex-col items-center space-y-3 text-center p-6 bg-white rounded-xl border border-ivory-300 shadow-sm max-w-sm">
+          <div className="text-sm font-bold text-charcoal-900">Sign In Required</div>
+          <p className="text-xs text-charcoal-500">
+            Please log in with your account to access the dashboard and manage integrations.
+          </p>
+          <a
+            href="/login"
+            className="px-4 py-2 bg-forest-900 text-ivory-100 rounded-lg text-xs font-semibold hover:bg-forest-800 transition-colors"
+          >
+            Go to Login
+          </a>
+        </div>
       </div>
     );
   }
@@ -208,24 +242,26 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {/* Navigation Links */}
           <nav className="p-3 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center space-x-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
-                    isActive
-                      ? "bg-terracotta-500 text-white shadow-sm"
-                      : "text-ivory-300 hover:bg-forest-800 hover:text-ivory-100"
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-forest-500"}`} />
-                  <span>{item.name}</span>
-                </Link>
-              );
-            })}
+            {navItems
+              .filter((item) => !item.module || hasModule(item.module))
+              .map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href || (item.href === "/dashboard" && pathname === "/");
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
+                      isActive
+                        ? "bg-terracotta-500 text-white shadow-sm"
+                        : "text-ivory-300 hover:bg-forest-800 hover:text-ivory-100"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-forest-500"}`} />
+                    <span>{item.name}</span>
+                  </Link>
+                );
+              })}
           </nav>
         </div>
 

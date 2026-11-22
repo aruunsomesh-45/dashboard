@@ -165,7 +165,9 @@ class TestCrossTenant:
         client = client_for(world["ub"])
         skip_destructive = {("workspace-detail", "DELETE"), ("brand-integrations", "DELETE"),
                             ("brand-integrations", "POST"), ("workspace-invites", "POST"),
-                            ("brand-list-create", "POST")}
+                            ("brand-list-create", "POST"),
+                            # these two use a random member UUID, so 404 "member not found" is the correct answer
+                            ("workspace-member-detail", "PATCH"), ("workspace-member-detail", "DELETE")}
         for name, method, path, body in routes(world["wb"].slug, world["bb"].id, world["ship"].awb, world["alert"].id):
             if (name, method) in skip_destructive:
                 continue

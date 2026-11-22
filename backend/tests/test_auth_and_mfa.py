@@ -61,7 +61,11 @@ class TestAuthenticationAndMFA:
 
         user_a.refresh_from_db()
         assert user_a.mfa_enabled is True
-        assert user_a.mfa_secret == secret
+        # QA 2026-11-21: the TOTP secret is stored only encrypted (UserMFA), never in the plaintext column.
+        assert user_a.mfa_secret == ""
+        from apps.accounts.services import decrypt_totp_secret
+        assert user_a.mfa.encrypted_totp_secret and user_a.mfa.encrypted_totp_secret != secret
+        assert decrypt_totp_secret(user_a.mfa.encrypted_totp_secret) == secret
 
     def test_mfa_login_flow_and_challenge(self, api_client, user_a):
         # Enable MFA on user_a

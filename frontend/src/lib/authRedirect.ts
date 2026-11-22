@@ -9,7 +9,7 @@
 export const DEFAULT_AFTER_LOGIN = "/dashboard";
 
 /** Pages reachable without a session. Everything else is protected (see src/middleware.ts). */
-export const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/mfa-challenge"];
+export const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/mfa-challenge", "/guide"];
 const PUBLIC_PREFIXES = ["/invites/"];
 
 export function isPublicPath(pathname: string): boolean {

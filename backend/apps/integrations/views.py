@@ -171,8 +171,10 @@ class ShopifyDashboardStatsView(APIView):
 
         # 1. Tenant-isolated cached aggregation compute function
         def compute_aggregates():
-            # Single-pass SQL aggregation combining metrics and funnel
-            aggs = orders_qs.aggregate(
+            # Single-pass SQL aggregation combining metrics and funnel.
+            # Cancelled orders are not sales: excluded from revenue, order count, AOV and the funnel
+            # (they still appear in the recent-orders list below). QA 2026-11-21.
+            aggs = orders_qs.filter(cancelled_at__isnull=True).aggregate(
                 gross_sales=Sum("gross_amount"),
                 discount_total=Sum("discount_amount"),
                 tax_total=Sum("tax_amount"),

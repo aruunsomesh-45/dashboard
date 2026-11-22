@@ -6,6 +6,7 @@ export interface User {
   first_name: string;
   last_name: string;
   mfa_enabled: boolean;
+  is_superuser?: boolean;
   created_at: string;
 }
 

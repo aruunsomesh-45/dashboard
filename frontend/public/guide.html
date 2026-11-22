@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>125East – Complete API Setup & Integration Guide</title>
+  <style>
+    :root {
+      --bg: #F9F9FB;
+      --card-bg: #FFFFFF;
+      --primary: #1E293B;
+      --accent: #E05A47;
+      --accent-light: #FDF2F0;
+      --border: #E2E8F0;
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --success: #10B981;
+      --success-bg: #ECFDF5;
+      --warning: #F59E0B;
+      --warning-bg: #FFFBEB;
+      --danger: #EF4444;
+      --danger-bg: #FEF2F2;
+      --radius: 12px;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px 16px 80px; }
+    .container { max-width: 1040px; margin: 0 auto; }
+
+    /* Header */
+    header { background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); color: white; padding: 40px 32px; border-radius: 16px; margin-bottom: 32px; box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2); }
+    header .badge { display: inline-block; background: rgba(224, 90, 71, 0.2); color: #FFA091; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 12px; border-radius: 999px; margin-bottom: 12px; border: 1px solid rgba(224, 90, 71, 0.4); }
+    header h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    header p { color: #94A3B8; font-size: 15px; max-width: 650px; }
+    .header-links { margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #E05A47; color: white; border: none; }
+    .btn-primary:hover { background: #C84937; }
+    .btn-outline { background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); }
+    .btn-outline:hover { background: rgba(255,255,255,0.15); }
+
+    /* Navigation Tabs */
+    .tabs-nav { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 24px; border-bottom: 2px solid var(--border); }
+    .tab-btn { background: none; border: none; padding: 12px 18px; font-size: 15px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 8px 8px 0 0; white-space: nowrap; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+    .tab-btn:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+    .tab-btn.active { color: #E05A47; border-bottom: 3px solid #E05A47; background: white; box-shadow: 0 -2px 8px rgba(0,0,0,0.04); }
+
+    /* Tab Content Cards */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 32px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+    .card h2 { font-size: 22px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .card h3 { font-size: 16px; font-weight: 700; margin: 24px 0 12px; color: var(--primary); }
+
+    /* Alert Boxes */
+    .alert { padding: 16px 20px; border-radius: 8px; margin: 16px 0; font-size: 14px; border-left: 4px solid; }
+    .alert-info { background: #F0F9FF; border-color: #0284C7; color: #0369A1; }
+    .alert-warning { background: var(--warning-bg); border-color: var(--warning); color: #B45309; }
+    .alert-danger { background: var(--danger-bg); border-color: var(--danger); color: #B91C1C; }
+    .alert-success { background: var(--success-bg); border-color: var(--success); color: #047857; }
+    .alert strong { font-weight: 700; }
+
+    /* Step List */
+    .steps { list-style: none; counter-reset: step-counter; margin: 20px 0; }
+    .step-item { position: relative; padding-left: 48px; margin-bottom: 24px; }
+    .step-item::before { content: counter(step-counter); counter-increment: step-counter; position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: #1E293B; color: white; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+    .step-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+    .step-desc { font-size: 14px; color: var(--text-muted); }
+    .step-desc a { color: #E05A47; font-weight: 600; text-decoration: underline; }
+    .step-desc a:hover { color: #C84937; }
+
+    /* Parameter Table */
+    .param-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+    .param-table th, .param-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    .param-table th { background: #F8FAFC; color: var(--primary); font-weight: 700; }
+    .param-table td code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #0F172A; }
+    .badge-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .badge-req { background: #FEF2F2; color: #DC2626; border: 1px solid #FCA5A5; }
+    .badge-opt { background: #F1F5F9; color: #475569; }
+
+    /* Code Snippets & Copyable Text */
+    .code-box { background: #0F172A; color: #E2E8F0; padding: 14px 18px; border-radius: 8px; font-family: monospace; font-size: 13px; margin: 10px 0; overflow-x: auto; position: relative; }
+
+    /* FAQ Accordion */
+    .faq-item { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; background: white; }
+    .faq-q { padding: 16px 20px; font-size: 15px; font-weight: 600; color: var(--primary); cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; background: white; }
+    .faq-q:hover { background: #F8FAFC; }
+    .faq-q::after { content: "+"; font-size: 20px; color: var(--text-muted); transition: transform 0.2s; }
+    .faq-item.open .faq-q::after { content: "−"; transform: rotate(180deg); }
+    .faq-a { display: none; padding: 0 20px 20px; font-size: 14px; color: #334155; line-height: 1.6; border-top: 1px solid #F1F5F9; }
+    .faq-item.open .faq-a { display: block; }
+
+    /* Interactive Checklist */
+    .checklist { list-style: none; margin: 16px 0; }
+    .check-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: white; cursor: pointer; transition: background 0.2s; }
+    .check-item:hover { background: #F8FAFC; }
+    .check-item input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; accent-color: #E05A47; cursor: pointer; }
+    .check-item.done { text-decoration: line-through; opacity: 0.6; background: #F1F5F9; }
+
+    /* Mobile responsive */
+    @media (max-width: 640px) {
+      body { padding: 12px 8px 60px; }
+      header { padding: 24px 16px; }
+      .card { padding: 20px 16px; }
+      .step-item { padding-left: 40px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="badge">Beginner's Setup Manual</div>
+    <h1>Connect Your Store & Marketing APIs</h1>
+    <p>A step-by-step visual guide to generate, verify, and link API keys for Shopify, Razorpay, Delhivery, Meta Ads, and Organic Instagram into your 125East dashboard.</p>
+    <div class="header-links">
+      <a href="https://125east-dashboard.vercel.app/integrations" target="_blank" class="btn btn-primary">Open Integrations Hub ↗</a>
+      <a href="https://125east-dashboard.vercel.app/login" target="_blank" class="btn btn-outline">Dashboard Sign In</a>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="tabs-nav">
+    <button class="tab-btn active" onclick="openTab('tab-shopify')">🛍️ Shopify</button>
+    <button class="tab-btn" onclick="openTab('tab-razorpay')">💳 Razorpay</button>
+    <button class="tab-btn" onclick="openTab('tab-delhivery')">🚚 Delhivery</button>
+    <button class="tab-btn" onclick="openTab('tab-meta')">📢 Meta Ads</button>
+    <button class="tab-btn" onclick="openTab('tab-instagram')">📸 Instagram</button>
+    <button class="tab-btn" onclick="openTab('tab-faq')">❓ Master FAQs</button>
+    <button class="tab-btn" onclick="openTab('tab-cheat')">📋 Quick Cheat Sheet</button>
+  </nav>
+
+  <!-- ==================== SHOPIFY TAB ==================== -->
+  <div id="tab-shopify" class="tab-content active">
+    <div class="card">
+      <h2>🛍️ Shopify Integration Guide</h2>
+      <p>Connect your Shopify store to automatically sync orders, gross/net sales, average order value (AOV), and customer retention data.</p>
+
+      <div class="alert alert-warning">
+        <strong>⚠️ Critical Pitfall (Avoid 401 Unauthorized):</strong><br>
+        Shopify generates two different credentials:
+        <ul style="margin: 6px 0 0 20px;">
+          <li><strong>Admin API Access Token</strong> starts with <code>shpat_</code> (This goes into the Access Token field).</li>
+          <li><strong>API Secret Key</strong> starts with <code>shpss_</code> (This goes into the Webhook Secret field).</li>
+        </ul>
+        Do not paste the <code>shpss_</code> secret into the Access Token field, or Shopify will reject it with 401 Unauthorized!
+      </div>
+
+      <h3>Parameters Required</h3>
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Field in 125East</th>
+            <th>Required?</th>
+            <th>Expected Format</th>
+            <th>Where to Find It</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Shopify Store Domain</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>your-store.myshopify.com</code></td>
+            <td>Your browser address bar or Shopify Admin → Settings → Domains</td>
+          </tr>
+          <tr>
+            <td><strong>Admin API Access Token</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>shpat_xxxxxxxxxxxxxxxxxxxx</code></td>
+            <td>Custom App → API credentials → Admin API access token</td>
+          </tr>
+          <tr>
+            <td><strong>Webhook HMAC Secret</strong></td>
+            <td><span class="badge-pill badge-opt">Optional</span></td>
+            <td><code>shpss_xxxxxxxxxxxxxxxxxxxx</code></td>
+            <td>Custom App → API credentials → API secret key</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Step-by-Step Procedure</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open Shopify Admin Settings</div>
+          <div class="step-desc">
+            Go to <a href="https://admin.shopify.com" target="_blank">admin.shopify.com</a> and sign in. Click <strong>Settings</strong> (⚙️ bottom-left corner).
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Enable Custom App Development</div>
+          <div class="step-desc">
+            Click <strong>Apps and sales channels</strong> in the settings menu. Click <strong>Develop apps</strong> at the top right. <em>(If prompted, click "Allow custom app development")</em>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Create the Custom App</div>
+          <div class="step-desc">
+            Click <strong>Create an app</strong>. Enter App Name: <code>125East Dashboard</code>, select your email, and click <strong>Create app</strong>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Select Scopes (Permissions)</div>
+          <div class="step-desc">
+            In the <strong>Overview</strong> tab, click <strong>Configure Admin API scopes</strong>. Search and check:
+            <ul style="margin: 8px 0 0 20px;">
+              <li>☑️ <code>read_orders</code> (Pulls orders and revenue)</li>
+              <li>☑️ <code>read_customers</code> (Pulls buyer analytics)</li>
+              <li>☑️ <code>read_products</code> (Pulls SKU & catalog sales)</li>
+            </ul>
+            Click the black <strong>Save</strong> button in the top right.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Install App and Copy the Token</div>
+          <div class="step-desc">
+            Switch to the <strong>API credentials</strong> tab. Click <strong>Install app</strong> and confirm. Under <strong>Admin API access token</strong>, click <strong>Reveal token once</strong>. Copy the token starting with <code>shpat_</code>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Connect in 125East</div>
+          <div class="step-desc">
+            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Shopify</strong> card, paste your Store Domain and <code>shpat_</code> token, and click <strong>Save & Connect</strong>! Then click <strong>Sync Now</strong> 🔄.
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ==================== RAZORPAY TAB ==================== -->
+  <div id="tab-razorpay" class="tab-content">
+    <div class="card">
+      <h2>💳 Razorpay Integration Guide</h2>
+      <p>Sync payment settlement rates, refunds, customer payment failures, and bank chargebacks/disputes with zero manual reconciliation.</p>
+
+      <div class="alert alert-info">
+        <strong>💡 Live Mode vs Test Mode:</strong><br>
+        Make sure you are toggled to <strong>Live Mode</strong> in your Razorpay Dashboard before generating keys. Live keys begin with <code>rzp_live_</code>. Test keys (<code>rzp_test_</code>) will only display fake dummy data.
+      </div>
+
+      <h3>Parameters Required</h3>
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Field in 125East</th>
+            <th>Required?</th>
+            <th>Expected Format</th>
+            <th>Where to Find It</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Key ID</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>rzp_live_xxxxxxxxxxxx</code></td>
+            <td>Razorpay Dashboard → Account & Settings → API Keys</td>
+          </tr>
+          <tr>
+            <td><strong>Key Secret</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>xxxxxxxxxxxxxxxxxxxxxxxx</code></td>
+            <td>Revealed once upon generating or downloading Key Details</td>
+          </tr>
+          <tr>
+            <td><strong>Webhook Secret</strong></td>
+            <td><span class="badge-pill badge-opt">Optional</span></td>
+            <td><code>rzp_wh_secret_xxxxxxx</code></td>
+            <td>Created when setting up an instant webhook in Razorpay</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Step-by-Step Procedure</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open Razorpay API Keys Settings</div>
+          <div class="step-desc">
+            Log in to the <a href="https://dashboard.razorpay.com/#/app/keys" target="_blank">Razorpay Dashboard API Keys</a> page. Ensure the toggle in the top navbar is set to <strong>Live Mode</strong>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Generate Key Pair</div>
+          <div class="step-desc">
+            Click <strong>Generate Key</strong> (or <strong>Regenerate Key</strong> if you already have one). A popup will display your <strong>Key ID</strong> and <strong>Key Secret</strong>. Download or copy both strings immediately.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">(Optional) Set Up Instant Webhooks</div>
+          <div class="step-desc">
+            Go to <a href="https://dashboard.razorpay.com/#/app/webhooks" target="_blank">Razorpay Webhooks</a>. Click <strong>Add New Webhook</strong>:
+            <ul style="margin: 8px 0 0 20px;">
+              <li><strong>Webhook URL</strong>: <code>https://125east-dashboard.vercel.app/api/webhooks/razorpay/&lt;your-brand-id&gt;/</code></li>
+              <li><strong>Secret</strong>: Choose any random password (e.g. <code>my_razorpay_secret_123</code>).</li>
+              <li><strong>Active Events</strong>: Check <code>payment.captured</code>, <code>payment.failed</code>, <code>refund.processed</code>.</li>
+            </ul>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save in 125East</div>
+          <div class="step-desc">
+            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Razorpay</strong> card, paste your <code>rzp_live_</code> Key ID and Secret, and click <strong>Save & Connect</strong>.
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ==================== DELHIVERY TAB ==================== -->
+  <div id="tab-delhivery" class="tab-content">
+    <div class="card">
+      <h2>🚚 Delhivery / Logistics Guide</h2>
+      <p>Connect Delhivery to track real-time AWB delivery status, transit stages, RTO returns, and Non-Delivery Report (NDR) reattempts.</p>
+
+      <h3>Parameters Required</h3>
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Field in 125East</th>
+            <th>Required?</th>
+            <th>Expected Format</th>
+            <th>Where to Find It</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Client ID / Account Name</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>merchant_account_name</code></td>
+            <td>Delhivery One Portal → Profile / Account Settings</td>
+          </tr>
+          <tr>
+            <td><strong>API Token</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>Bearer token (40-char string)</code></td>
+            <td>Delhivery One Portal → Settings → API Keys</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Step-by-Step Procedure</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Log in to Delhivery One Portal</div>
+          <div class="step-desc">
+            Navigate to <a href="https://one.delhivery.com/" target="_blank">Delhivery One Portal</a>. Sign in with your registered merchant credentials.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Navigate to API Settings</div>
+          <div class="step-desc">
+            Go to <strong>Settings</strong> → <strong>API & Integrations</strong> (or <strong>Developer Settings</strong>).
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Copy Your Client Name and API Token</div>
+          <div class="step-desc">
+            Copy your registered <strong>Client Name</strong> (e.g., <code>YOURCOMPANY_EXPRESS</code>) and the production <strong>API Token</strong>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Connect in 125East</div>
+          <div class="step-desc">
+            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Delhivery</strong> card, paste your Client Name and API Token, and click <strong>Save & Connect</strong>.
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ==================== META ADS TAB ==================== -->
+  <div id="tab-meta" class="tab-content">
+    <div class="card">
+      <h2>📢 Meta Ads (Facebook & Instagram Ads)</h2>
+      <p>Pull daily ad spend, ROAS, cost per acquisition (CAC), click-through rate (CTR), and attribution metrics directly from Meta Ads Manager.</p>
+
+      <div class="alert alert-warning">
+        <strong>⚠️ Never Use Short-Lived User Tokens:</strong><br>
+        Standard Facebook user tokens expire in 1 to 2 hours! To ensure your dashboard updates continuously without breaking, create a <strong>System User Token</strong> in Meta Business Suite, which never expires.
+      </div>
+
+      <h3>Parameters Required</h3>
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Field in 125East</th>
+            <th>Required?</th>
+            <th>Expected Format</th>
+            <th>Where to Find It</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Ad Account ID</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>act_xxxxxxxxxxxxxxxx</code></td>
+            <td>Meta Ads Manager URL (e.g. <code>act_1234567890</code>)</td>
+          </tr>
+          <tr>
+            <td><strong>System User Access Token</strong></td>
+            <td><span class="badge-pill badge-req">Required</span></td>
+            <td><code>EAABxxxxxxxxxxxxxxxxxxxx</code></td>
+            <td>Business Settings → System Users → Generate New Token</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Step-by-Step Procedure</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Find Your Ad Account ID</div>
+          <div class="step-desc">
+            Open <a href="https://adsmanager.facebook.com/" target="_blank">Meta Ads Manager</a>. In the top-left account dropdown or browser URL, look for the account ID. Include the <code>act_</code> prefix (e.g. <code>act_1029384756</code>).
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Open Meta Business Settings</div>
+          <div class="step-desc">
+            Go to <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings → System Users</a>. If you don't have a System User, click <strong>Add</strong>, set Role as <strong>Admin</strong>, and name it <code>125East Sync</code>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Assign Assets to System User</div>
+          <div class="step-desc">
+            Click <strong>Add Assets</strong> on your System User. Under <strong>Ad Accounts</strong>, select your store's Ad Account, toggle on <strong>Full Control / Manage Ad Account</strong>, and click <strong>Save Changes</strong>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Generate Never-Expiring Token</div>
+          <div class="step-desc">
+            Click <strong>Generate New Token</strong>. Select your app, set token expiration to <strong>Never</strong>, and check these permissions:
+            <ul style="margin: 8px 0 0 20px;">
+              <li>☑️ <code>ads_read</code></li>
+              <li>☑️ <code>read_insights</code></li>
+            </ul>
+            Click <strong>Generate Token</strong> and copy the string starting with <code>EAAB...</code>.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Connect in 125East</div>
+          <div class="step-desc">
+            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand <strong>Meta Ads</strong>, paste your <code>act_</code> account ID and <code>EAAB...</code> token, and click <strong>Save & Connect</strong>!
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ==================== INSTAGRAM TAB ==================== -->
+  <div id="tab-instagram" class="tab-content">
+    <div class="card">
+      <h2>📸 Organic Instagram Account Guide</h2>
+      <p>Sync organic post performance, follower engagement rate, reach, and organic impressions from your brand's Instagram profile.</p>
+
+      <div class="alert alert-info">
+        <strong>💡 Account Prerequisite:</strong><br>
+        Instagram's official API requires your Instagram account to be a <strong>Professional Account</strong> (Business or Creator) and linked to a Facebook Page you manage. Personal profiles are not supported by Meta's Graph API.
+      </div>
+
+      <h3>Step-by-Step Procedure</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Switch to a Professional Account in Instagram App</div>
+          <div class="step-desc">
+            In the Instagram mobile app, go to <strong>Profile → Settings & Privacy → Account type and tools</strong> → Tap <strong>Switch to professional account</strong> (Choose <em>Business</em>).
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Connect Instagram to Your Facebook Page</div>
+          <div class="step-desc">
+            In Instagram settings, tap <strong>Linked Accounts / Business Profile</strong> → Connect your store's Facebook Page.
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Generate Instagram Graph API Token</div>
+          <div class="step-desc">
+            In <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings → System Users</a>, click <strong>Generate New Token</strong> and ensure the following permissions are granted:
+            <ul style="margin: 8px 0 0 20px;">
+              <li>☑️ <code>instagram_basic</code></li>
+              <li>☑️ <code>instagram_manage_insights</code></li>
+              <li>☑️ <code>pages_show_list</code></li>
+              <li>☑️ <code>pages_read_engagement</code></li>
+            </ul>
+          </div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save in 125East</div>
+          <div class="step-desc">
+            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand <strong>Instagram</strong>, enter your handle (e.g. <code>@yourbrand</code>) and token, and click <strong>Save & Connect</strong>.
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ==================== FAQ TAB ==================== -->
+  <div id="tab-faq" class="tab-content">
+    <div class="card">
+      <h2>❓ Master FAQs & Troubleshooting</h2>
+
+      <div class="faq-item open">
+        <div class="faq-q" onclick="toggleFaq(this)">1. Why do I get "Shopify rejected the Admin API Access Token (401 Unauthorized)"?</div>
+        <div class="faq-a">
+          This almost always happens when you paste the <strong>API secret key</strong> (which begins with <code>shpss_</code>) into the <em>Admin API Access Token</em> box instead of the actual token (which begins with <code>shpat_</code>).<br><br>
+          <strong>Fix:</strong> In Shopify Admin → Apps and sales channels → Develop apps → Your App → API credentials, look at the top box titled <em>Admin API access token</em>. Click <strong>Reveal token once</strong> to copy the token starting with <code>shpat_</code>.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">2. Do I need to set up webhooks right now to see my orders?</div>
+        <div class="faq-a">
+          <strong>No!</strong> You can leave the Webhook Secret empty initially. When you click <strong>Sync Now</strong> in your 125East dashboard, the backend automatically calls the Shopify REST API to pull the past 90 days of order and customer data into your database. Webhooks are only necessary later if you want instant, real-time push whenever a new order is completed.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">3. Why are my Razorpay payments not showing up?</div>
+        <div class="faq-a">
+          Check two things:
+          <ol style="margin: 8px 0 0 20px;">
+            <li>Are you using <code>rzp_test_...</code> keys? Test keys will only pull sandbox transactions. Generate <code>rzp_live_...</code> keys from Razorpay Dashboard Live Mode.</li>
+            <li>Ensure you copied the entire Key Secret without trailing spaces.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">4. Why does my Meta Ads token stop working after a few days?</div>
+        <div class="faq-a">
+          Tokens created through the Graph API Explorer or standard user login expire in 1–2 hours or 60 days. You must generate a <strong>System User Token</strong> inside <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings</a>. System user tokens do not have an expiration date.
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">5. How do I know if my data has been pulled successfully?</div>
+        <div class="faq-a">
+          You can check in 2 places:
+          <ul style="margin: 8px 0 0 20px;">
+            <li><strong>In Dashboard UI:</strong> The integration card will show 🟢 <strong>Connected</strong> and a timestamp like <em>"Last synced: Today at 2:15 PM"</em>. Then click the <strong>Shopify</strong> tab in the sidebar to see your sales graphs.</li>
+            <li><strong>In Terminal:</strong> Run <code>.\.venv\Scripts\python.exe backend/check_data_sync.py</code>. It outputs the exact count of orders, shipments, and ad rows saved in your database.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggleFaq(this)">6. Is my API data and keys stored securely?</div>
+        <div class="faq-a">
+          Yes. All external API keys and secrets are encrypted at rest using industry-standard <strong>AES-256-GCM encryption</strong> in PostgreSQL before they ever touch the database disk. No plain-text tokens are visible in database logs.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CHEAT SHEET TAB ==================== -->
+  <div id="tab-cheat" class="tab-content">
+    <div class="card">
+      <h2>📋 Quick Parameter Cheat Sheet</h2>
+      <p>Use this reference table to verify every parameter before saving in the dashboard:</p>
+
+      <table class="param-table">
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Field Label</th>
+            <th>Starting Prefix</th>
+            <th>Direct Link to Generate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Shopify</strong></td>
+            <td>Store Domain</td>
+            <td><code>[brand].myshopify.com</code></td>
+            <td><a href="https://admin.shopify.com" target="_blank">Shopify Admin ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Shopify</strong></td>
+            <td>Admin API Access Token</td>
+            <td><code>shpat_</code></td>
+            <td><a href="https://admin.shopify.com/settings/apps/development" target="_blank">Shopify Develop Apps ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Shopify</strong></td>
+            <td>Webhook Secret</td>
+            <td><code>shpss_</code></td>
+            <td>Custom App → API secret key</td>
+          </tr>
+          <tr>
+            <td><strong>Razorpay</strong></td>
+            <td>Key ID</td>
+            <td><code>rzp_live_</code></td>
+            <td><a href="https://dashboard.razorpay.com/#/app/keys" target="_blank">Razorpay Keys ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Razorpay</strong></td>
+            <td>Key Secret</td>
+            <td><em>(32-character secret)</em></td>
+            <td>Razorpay API Key modal</td>
+          </tr>
+          <tr>
+            <td><strong>Delhivery</strong></td>
+            <td>Client ID</td>
+            <td><code>merchant_name</code></td>
+            <td><a href="https://one.delhivery.com/" target="_blank">Delhivery One ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Delhivery</strong></td>
+            <td>API Token</td>
+            <td><em>(Bearer Token)</em></td>
+            <td>Delhivery Developer Settings</td>
+          </tr>
+          <tr>
+            <td><strong>Meta Ads</strong></td>
+            <td>Ad Account ID</td>
+            <td><code>act_</code></td>
+            <td><a href="https://adsmanager.facebook.com/" target="_blank">Meta Ads Manager ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Meta Ads</strong></td>
+            <td>Access Token</td>
+            <td><code>EAAB...</code></td>
+            <td><a href="https://business.facebook.com/settings/system-users" target="_blank">Business System Users ↗</a></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Beginner's Connection Checklist</h3>
+      <ul class="checklist">
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Generated Shopify Custom App with <code>read_orders</code>, <code>read_customers</code></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Copied Shopify <code>shpat_</code> token (NOT <code>shpss_</code>) into 125East</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Generated Razorpay Live Mode key (starts with <code>rzp_live_</code>)</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Grabbed Delhivery Client Name & API Token from Delhivery One portal</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Created Meta System User and generated non-expiring token with <code>ads_read</code></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Clicked "Sync Now" on connected cards and verified data in Dashboard tabs</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function openTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    const target = document.getElementById(tabId);
+    if (target) target.classList.add('active');
+    
+    const clickedBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+    if (clickedBtn) clickedBtn.classList.add('active');
+  }
+
+  function toggleFaq(el) {
+    const parent = el.parentElement;
+    parent.classList.toggle('open');
+  }
+
+  function toggleCheck(el) {
+    const cb = el.querySelector('input[type="checkbox"]');
+    if (event.target !== cb) {
+      cb.checked = !cb.checked;
+    }
+    el.classList.toggle('done', cb.checked);
+  }
+</script>
+
+</body>
+</html>

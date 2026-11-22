@@ -6,6 +6,7 @@ import path from "path";
 export { expect };
 
 const ROOT = path.join(__dirname, "..");
+const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:3100";
 export const fx = JSON.parse(fs.readFileSync(path.join(ROOT, "fixtures.json"), "utf8"));
 export type Who = "owner" | "admin" | "viewer" | "outsider";
 
@@ -121,7 +122,9 @@ export async function djangoLogin(page: Page, who: Who = "owner") {
   const token = (await page.context().cookies()).find((c) => c.name === "csrftoken")?.value || "";
   const res = await page.request.post("/api/auth/login", {
     data: { email: fx.users[who].email, password: fx.password },
-    headers: { "X-CSRFToken": token },
+    // A real browser sends Origin/Referer on POST; page.request does not. Behind the /api proxy Django sees
+    // X-Forwarded-Proto: https and applies strict Referer checking, so mimic the browser (QA 2026-11-21).
+    headers: { "X-CSRFToken": token, Origin: new URL(page.url() === "about:blank" ? BASE_URL : page.url()).origin, Referer: `${BASE_URL}/login` },
   });
   expect(res.ok(), `django login for ${who}`).toBeTruthy();
   const body = await res.json();
