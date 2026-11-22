@@ -55,3 +55,7 @@ backups/
 e2e/results-demo/
 
 .vercel
+.env*
+
+supabase/.temp/
+

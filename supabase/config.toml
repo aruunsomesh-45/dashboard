@@ -413,6 +413,28 @@ s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
 
+[functions.test-connection]
+verify_jwt = true
+
+[functions.shopify-sync]
+verify_jwt = true
+
+[functions.razorpay-sync]
+verify_jwt = true
+
+[functions.meta-ads-sync]
+verify_jwt = true
+
+[functions.instagram-sync]
+verify_jwt = true
+
+[functions.webhook-shopify]
+verify_jwt = false
+
+[functions.webhook-razorpay]
+verify_jwt = false
+
+
 # [experimental.pgdelta]
 # When enabled, pg-delta becomes the active engine for supported schema flows.
 # enabled = false
