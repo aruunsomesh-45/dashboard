@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicAuthClient, getAuthPayloadForUser } from "@/lib/serverlessAuth";
+import { setSessionCookies } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (authError || !authData.user || !authData.session) {
+      // Generic message (do not reveal whether the email exists), except the actionable unconfirmed-email case.
+      const unconfirmed = /not confirmed/i.test(authError?.message || "");
       return NextResponse.json(
-        { error: authError?.message || "Invalid email or password." },
+        { error: unconfirmed ? "Please confirm your email address before signing in." : "Invalid email or password." },
         { status: 400 }
       );
     }
@@ -37,24 +40,13 @@ export async function POST(req: NextRequest) {
       redirect: "/dashboard",
     });
 
-    // Set secure auth cookies for both browser requests and SSR
-    const cookieOpts = {
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax" as const,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    };
-
-    res.cookies.set("sb-access-token", authData.session.access_token, cookieOpts);
-    res.cookies.set("sb-refresh-token", authData.session.refresh_token, cookieOpts);
-    res.cookies.set("sessionid", authData.session.access_token, cookieOpts);
+    setSessionCookies(res, authData.session);
 
     return res;
   } catch (err: any) {
     console.error("Serverless login error:", err);
     return NextResponse.json(
-      { error: err?.message || "Internal authentication error" },
+      { error: "Internal authentication error" },
       { status: 500 }
     );
   }

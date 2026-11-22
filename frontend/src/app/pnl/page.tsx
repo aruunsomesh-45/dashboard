@@ -107,14 +107,15 @@ export default function PnLPage() {
         // 1. COGS benchmark: 35% of net realized revenue
         const cogs = Math.round(net * 0.35);
         const grossMargin = net - cogs;
-        const grossMarginPct = net > 0 ? Number(((grossMargin / net) * 100).toFixed(1)) : 65.0;
+        const grossMarginPct = net > 0 ? Number(((grossMargin / net) * 100).toFixed(1)) : null;
 
         // 2. Gateway Charges benchmark: 2% Razorpay transaction fee
         const gatewayCharges = Math.round(net * 0.02);
 
         // 3. Shipping Costs benchmark: standard ₹75 per order forward freight
-        const orderCount = m.order_count || 1;
-        const shippingCosts = Math.max(1, orderCount) * 7500;
+        // No orders -> no freight (previously a phantom ₹75 and a negative CM1 on an empty store).
+        const orderCount = m.order_count || 0;
+        const shippingCosts = orderCount * 7500;
 
         // 4. Paid Ad Spend: live synced Meta spend or 0
         const spend = adSpend || 0;
