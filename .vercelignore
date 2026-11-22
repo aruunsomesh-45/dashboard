@@ -1,0 +1,46 @@
+# Python & Virtual Environments
+.venv/
+.venv*
+venv/
+*.egg-info/
+__pycache__/
+
+# Node & Build artifacts
+**/node_modules/
+**/.next/
+**/.next*
+out/
+build/
+dist/
+.next-demo-test/
+
+# Non-frontend production modules
+scale/
+backend/
+serverless/
+supabase/
+e2e/
+tests/
+testsprite_tests/
+reports/
+docs/
+backups/
+scripts/
+appflow/
+api-tests/
+APIs/
+
+# Git & Local configs
+.git/
+.vscode/
+.ruff_cache/
+.pytest_cache/
+.env
+.env.*
+.env*.local
+*.log
+*.sqlite3
+*.postman_collection.json
+lilly_postman.json
+test_five_apps.py
+run_tests.bat

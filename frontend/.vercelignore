@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.next*
+.next-demo-test/
+out/
+build/
+dist/
+.env*.local
+.env.production
+.env

@@ -53,3 +53,5 @@ backups/
 .vscode/mcp.json
 .next-demo-test/
 e2e/results-demo/
+
+.vercel
