@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicAuthClient, getAuthPayloadForUser } from "@/lib/serverlessAuth";
-import { setSessionCookies } from "@/lib/serverAuth";
+import { setMfaPendingCookies, setSessionCookies } from "@/lib/serverAuth";
+import { hasVerifiedTotp } from "@/lib/gotrue";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
         { error: unconfirmed ? "Please confirm your email address before signing in." : "Invalid email or password." },
         { status: 400 }
       );
+    }
+
+    // 2FA users get only a short-lived pending cookie: the session is issued after /api/v1/auth/mfa/verify.
+    if (hasVerifiedTotp(authData.user as any)) {
+      const res = NextResponse.json({ mfa_required: true });
+      setMfaPendingCookies(res, authData.session);
+      return res;
     }
 
     const { user, workspaces } = await getAuthPayloadForUser(authData.user);

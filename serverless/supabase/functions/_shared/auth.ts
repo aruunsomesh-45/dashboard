@@ -28,7 +28,27 @@ export async function requireAuth(
   if (error || !user) {
     throw new HttpError(401, "Authentication required: invalid or expired session");
   }
+  // Users with a verified TOTP factor must present an aal2 token (password-only sessions are rejected).
+  if (requiresAal2(user) && jwtAal(header) !== "aal2") {
+    throw new HttpError(401, "Two-factor verification required");
+  }
   return { user: { id: user.id, email: user.email || "" }, client };
+}
+
+export function requiresAal2(user: { factors?: Array<{ factor_type?: string; status?: string }> | null }): boolean {
+  return (user.factors ?? []).some((f) => f?.factor_type === "totp" && f?.status === "verified");
+}
+
+/** `aal` claim of a bearer JWT. Only meaningful after auth.getUser() has verified the token. */
+export function jwtAal(authorizationHeader: string): string {
+  try {
+    const token = authorizationHeader.replace(/^Bearer\s+/i, "");
+    const part = token.split(".")[1] ?? "";
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    return String(JSON.parse(atob(b64)).aal ?? "aal1");
+  } catch {
+    return "aal1";
+  }
 }
 
 /**

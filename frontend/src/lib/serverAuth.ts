@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Session, SupabaseClient, User as AuthUser } from "@supabase/supabase-js";
 import { getAdminClient } from "./supabaseServer";
 import { getPublicAuthClient } from "./serverlessAuth";
+import { RouteError } from "./routeError";
+import { hasVerifiedTotp, verifiedJwtClaims } from "./gotrue";
+
+export { RouteError };
 
 /**
  * Server-side session handling for the Next.js API routes (Vercel serverless functions).
@@ -15,6 +19,9 @@ import { getPublicAuthClient } from "./serverlessAuth";
 export const ACCESS_COOKIE = "sb-access-token";
 export const REFRESH_COOKIE = "sb-refresh-token";
 export const PAGE_GATE_COOKIE = "sessionid";
+/** Password-verified but not yet 2FA-verified login (aal1), held only until /api/v1/auth/mfa/verify. */
+export const MFA_PENDING_ACCESS = "sb-mfa-pending";
+export const MFA_PENDING_REFRESH = "sb-mfa-pending-rt";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // the refresh token outlives the 1h access token
 
@@ -29,6 +36,9 @@ export interface SessionContext {
   accessToken: string;
   /** Set when the access token was refreshed; pass to `withSessionCookies` on the response. */
   refreshed: Session | null;
+  /** Authenticator assurance level of the token: aal2 after a TOTP verification. */
+  aal: string;
+  mfaEnabled: boolean;
 }
 
 export interface TenantContext {
@@ -37,11 +47,6 @@ export interface TenantContext {
   brand: { id: string; name: string; currency: string; timezone: string } | null;
 }
 
-export class RouteError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
-}
 
 export function setSessionCookies(res: NextResponse, session: Pick<Session, "access_token" | "refresh_token">) {
   const opts = {
@@ -57,7 +62,23 @@ export function setSessionCookies(res: NextResponse, session: Pick<Session, "acc
 }
 
 export function clearSessionCookies(res: NextResponse) {
-  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PAGE_GATE_COOKIE, "csrftoken"]) res.cookies.delete(name);
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PAGE_GATE_COOKIE, MFA_PENDING_ACCESS, MFA_PENDING_REFRESH, "csrftoken"]) {
+    res.cookies.delete(name);
+  }
+}
+
+const PENDING_MAX_AGE = 60 * 10;
+
+export function setMfaPendingCookies(res: NextResponse, session: Pick<Session, "access_token" | "refresh_token">) {
+  const opts = { path: "/", httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", maxAge: PENDING_MAX_AGE };
+  res.cookies.set(MFA_PENDING_ACCESS, session.access_token, opts);
+  res.cookies.set(MFA_PENDING_REFRESH, session.refresh_token, opts);
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PAGE_GATE_COOKIE]) res.cookies.delete(name);
+}
+
+export function clearMfaPendingCookies(res: NextResponse) {
+  res.cookies.delete(MFA_PENDING_ACCESS);
+  res.cookies.delete(MFA_PENDING_REFRESH);
 }
 
 export function withSessionCookies(res: NextResponse, ctx: Pick<SessionContext, "refreshed">): NextResponse {
@@ -99,6 +120,11 @@ export async function requireSession(req: NextRequest, admin: SupabaseClient = g
 
   if (!authUser || !accessToken) throw new RouteError(401, "Authentication required");
 
+  // A user with a verified TOTP factor must present an aal2 token: a password-only session is not enough.
+  const aal = String(verifiedJwtClaims(accessToken).aal || "aal1");
+  const mfaEnabled = hasVerifiedTotp(authUser as any);
+  if (mfaEnabled && aal !== "aal2") throw new RouteError(401, "Two-factor verification required");
+
   // Users provisioned by handle_new_auth_user() share the auth.users id; older (Django-era) rows are matched by email.
   let { data: account } = await admin
     .from("accounts_user")
@@ -115,7 +141,7 @@ export async function requireSession(req: NextRequest, admin: SupabaseClient = g
   if (!account) throw new RouteError(403, "No 125 East account is linked to this login");
   if (account.is_active === false) throw new RouteError(403, "Account suspended");
 
-  return { authUser, userId: account.id, isSuperuser: Boolean(account.is_superuser), accessToken, refreshed };
+  return { authUser, userId: account.id, isSuperuser: Boolean(account.is_superuser), accessToken, refreshed, aal, mfaEnabled };
 }
 
 /**

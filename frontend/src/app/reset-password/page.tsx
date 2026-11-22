@@ -1,17 +1,32 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 import { ApiError, apiFetch, ensureCsrf } from "@/lib/api";
 import { AuthCard, Field, FormAlert, MIN_PASSWORD, SubmitButton } from "@/components/auth/AuthCard";
 
 function ResetPasswordContent() {
   const router = useRouter();
-  const params = useSearchParams();
-  const uid = params.get("uid") || "";
-  const token = params.get("token") || "";
+  // Supabase's emailed recovery link lands here as /reset-password#access_token=...&type=recovery
+  // (or #error=...&error_description=... when the link expired). The fragment never reaches a server.
+  const [token, setToken] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const accessToken = hash.get("access_token");
+    if (hash.get("error") || hash.get("error_code")) {
+      setLinkError((hash.get("error_description") || "This password reset link is invalid or has expired.").replace(/\+/g, " "));
+    } else if (accessToken && hash.get("type") === "recovery") {
+      setToken(accessToken);
+    }
+    // Drop the token from the address bar and history.
+    if (window.location.hash) window.history.replaceState({}, "", window.location.pathname);
+    setReady(true);
+  }, []);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -19,10 +34,12 @@ function ResetPasswordContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  if (!uid || !token) {
+  if (!ready) return null;
+
+  if (!token) {
     return (
       <AuthCard title="Reset your password">
-        <FormAlert>This password reset link is incomplete. Please request a new one.</FormAlert>
+        <FormAlert>{linkError || "This password reset link is incomplete. Please request a new one."}</FormAlert>
         <Link href="/forgot-password" className="block text-center text-sm font-semibold text-terracotta-600 hover:underline">
           Request a new link
         </Link>
@@ -44,7 +61,7 @@ function ResetPasswordContent() {
       await ensureCsrf();
       await apiFetch("/api/auth/password-reset/confirm/", {
         method: "POST",
-        body: JSON.stringify({ uid, token, password, confirm_password: confirmPassword }),
+        body: JSON.stringify({ access_token: token, password, confirm_password: confirmPassword }),
       });
       router.replace("/login?reset=1");
     } catch (err) {

@@ -3,22 +3,17 @@
 /**
  * Client-side view of the server session.
  *
- * The source of truth is the Django session (HTTP-only `sessionid` cookie, validated on every API call).
+ * The source of truth is the server session: Supabase Auth tokens in HTTP-only cookies, set by
+ * /api/auth/login (or /api/v1/auth/mfa/verify for 2FA users) and validated on every API call.
  * This context only mirrors `GET /api/auth/me` so pages can render the user and their workspaces.
- * No passwords or tokens are ever kept in JS memory beyond the submit call, nor in localStorage.
- *
- * QA 2026-11-21: restored after an uncommitted switch to Supabase Auth (`supabase.auth.signInWithPassword`)
- * that skipped the Google Authenticator step entirely and left fresh browsers unable to reach the dashboard
- * (session in localStorage, while middleware and every dashboard API rely on the Django session cookie).
- * The super-admin / module-permission additions from that work are kept: `isSuperAdmin` comes from the
- * server-verified Django user; `modules` are UI hints only (enforcement is server-side).
+ * The browser never holds a Supabase session of its own: a client-side password sign-in would bypass
+ * two-factor authentication, so Edge Functions are reached through the /api/fn proxy instead.
  */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Brand, User, Workspace } from "@/types/auth";
 import { ApiError, SESSION_EXPIRED_EVENT, apiFetch, ensureCsrf } from "@/lib/api";
 import { DEFAULT_AFTER_LOGIN, isPublicPath, loginUrlFor, safeNextPath } from "@/lib/authRedirect";
-import { supabase } from "@/lib/supabaseClient";
 
 type AuthPayload = { user: User; workspaces: Workspace[]; redirect?: string; mfa_required?: boolean };
 
@@ -158,54 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const data = await apiFetch<AuthPayload>("/api/auth/me");
       applyPayload(data);
-    } catch (err) {
-      // Fallback: check Supabase client session directly
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const authUser = session.user;
-          const { data: userRow } = await supabase
-            .from("accounts_user")
-            .select("*")
-            .eq("email", authUser.email)
-            .maybeSingle();
-
-          const userObj: User = {
-            id: userRow?.id || authUser.id,
-            email: authUser.email || "",
-            first_name: userRow?.first_name || "",
-            last_name: userRow?.last_name || "",
-            mfa_enabled: Boolean(userRow?.mfa_enabled),
-            is_superuser: Boolean(userRow?.is_superuser),
-            created_at: userRow?.created_at || authUser.created_at,
-          };
-
-          const { data: memberships } = await supabase
-            .from("tenancy_workspacemember")
-            .select("role, workspace:tenancy_workspace(*, brands:tenancy_brand(*))")
-            .eq("user_id", userObj.id);
-
-          const workspaces: Workspace[] = (memberships || [])
-            .filter((m: any) => m.workspace)
-            .map((m: any) => ({
-              id: m.workspace.id,
-              name: m.workspace.name,
-              slug: m.workspace.slug,
-              role: m.role,
-              brands: (m.workspace.brands || []).map((b: any) => ({
-                id: b.id,
-                name: b.name,
-                currency: b.currency,
-                timezone: b.timezone,
-              })),
-            }));
-
-          applyPayload({ user: userObj, workspaces });
-          return;
-        }
-      } catch (sbErr) {
-        // Continue to clear
-      }
+    } catch {
       clear();
       redirectToLogin();
     } finally {
@@ -256,65 +204,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push(`/mfa-challenge?${qs.toString()}`);
           return { error: null, mfaRequired: true };
         }
-        // Also sign into client-side supabase client for direct edge calls
-        await supabase.auth.signInWithPassword({ email: normalizedEmail, password }).catch(() => {});
         applyPayload(data);
         goAfterAuth(data.redirect);
         return { error: null };
       } catch (err) {
-        // Direct Serverless Fallback: Sign in via client-side Supabase Auth
-        try {
-          const { data: sbData, error: sbErr } = await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          });
-          if (sbErr || !sbData.user) {
-            return toResult(sbErr || err, "Invalid email or password.");
-          }
-          const authUser = sbData.user;
-          const { data: userRow } = await supabase
-            .from("accounts_user")
-            .select("*")
-            .eq("email", authUser.email)
-            .maybeSingle();
-
-          const userObj: User = {
-            id: userRow?.id || authUser.id,
-            email: authUser.email || "",
-            first_name: userRow?.first_name || "",
-            last_name: userRow?.last_name || "",
-            mfa_enabled: Boolean(userRow?.mfa_enabled),
-            is_superuser: Boolean(userRow?.is_superuser),
-            created_at: userRow?.created_at || authUser.created_at,
-          };
-
-          const { data: memberships } = await supabase
-            .from("tenancy_workspacemember")
-            .select("role, workspace:tenancy_workspace(*, brands:tenancy_brand(*))")
-            .eq("user_id", userObj.id);
-
-          const workspaces: Workspace[] = (memberships || [])
-            .filter((m: any) => m.workspace)
-            .map((m: any) => ({
-              id: m.workspace.id,
-              name: m.workspace.name,
-              slug: m.workspace.slug,
-              role: m.role,
-              brands: (m.workspace.brands || []).map((b: any) => ({
-                id: b.id,
-                name: b.name,
-                currency: b.currency,
-                timezone: b.timezone,
-              })),
-            }));
-
-          const payload = { user: userObj, workspaces, redirect: "/dashboard" };
-          applyPayload(payload);
-          goAfterAuth(payload.redirect);
-          return { error: null };
-        } catch (fallbackErr) {
-          return toResult(err, "Invalid email or password.");
-        }
+        return toResult(err, "Invalid email or password.");
       }
     },
     [applyPayload, goAfterAuth, router]
@@ -333,6 +227,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             confirm_password: input.confirmPassword,
           }),
         });
+        if ((data as any).confirmation_required) {
+          // Email confirmation is on: there is no session until the emailed link is clicked.
+          return { error: (data as any).message || "Check your email to confirm your address, then sign in." };
+        }
         applyPayload(data);
         goAfterAuth(data.redirect);
         return { error: null };

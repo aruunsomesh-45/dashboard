@@ -1,0 +1,13 @@
+{
+  "//": "Runs the REAL Next.js API route handlers (frontend/src/app/api) under Deno against the PGlite schema. Only getAdminClient is swapped (stub_supabaseServer.ts); GoTrue and the Edge Functions URL are served in-process by harness.ts.",
+  "nodeModulesDir": "none",
+  "unstable": ["sloppy-imports"],
+  "imports": {
+    "@/lib/supabaseServer": "./stub_supabaseServer.ts",
+    "../../../frontend/src/lib/supabaseServer": "./stub_supabaseServer.ts",
+    "../../../frontend/src/lib/supabaseServer.ts": "./stub_supabaseServer.ts",
+    "@/": "../../../frontend/src/",
+    "next/server": "npm:next@14.2.35/server.js",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.119.2"
+  }
+}

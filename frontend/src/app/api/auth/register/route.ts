@@ -60,6 +60,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (!authData.session) {
+      return NextResponse.json({
+        confirmation_required: true,
+        message: "Account created. Check your email and click the confirmation link, then sign in.",
+      });
+    }
+
     const { user, workspaces } = await getAuthPayloadForUser(authData.user);
 
     const res = NextResponse.json({
@@ -68,7 +75,7 @@ export async function POST(req: NextRequest) {
       redirect: "/dashboard",
     });
 
-    if (authData.session) setSessionCookies(res, authData.session);
+    setSessionCookies(res, authData.session);
 
     return res;
   } catch (err: any) {

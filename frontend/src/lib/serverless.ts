@@ -1,5 +1,3 @@
-import { supabase } from "./supabaseClient";
-
 export interface ConnectionTestResult {
   integration_name: string;
   connection_status: "connected" | "failed";
@@ -14,30 +12,18 @@ export interface ConnectionTestResult {
   };
 }
 
+/**
+ * Calls a Supabase Edge Function through the same-origin proxy (/api/fn/<name>), which forwards the
+ * session JWT from the HTTP-only cookie. The browser holds no Supabase session of its own.
+ */
 export async function invokeEdgeFunction<T>(
   functionName: string,
   payload: Record<string, unknown>
 ): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token || "";
-
-  const functionsBaseUrl =
-    process.env.NEXT_PUBLIC_FUNCTIONS_URL ||
-    (typeof window !== "undefined"
-      ? `http://${window.location.hostname}:54321/functions/v1`
-      : "http://127.0.0.1:54321/functions/v1");
-
-  const anonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlieXJveHlvZnFmcG96dmZlZGhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMjg2NjksImV4cCI6MjEwOTkwNDY2OX0.tGUf2QP8SpmS0ml19cCRPJ4wdV5hW8NeWwgPCe7rA4s";
-
-  const res = await fetch(`${functionsBaseUrl}/${functionName}`, {
+  const res = await fetch(`/api/fn/${encodeURIComponent(functionName)}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: token ? `Bearer ${token}` : "",
-      apikey: anonKey,
-    },
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 

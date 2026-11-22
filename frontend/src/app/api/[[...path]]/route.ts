@@ -11,6 +11,7 @@ import {
   requireTenant,
   withSessionCookies,
 } from "@/lib/serverAuth";
+import { handleAccountRoute } from "@/lib/accountRoutes";
 import { decryptCredentialsFromPgHex, encryptCredentialsToPgHex, isEncryptionConfigured } from "@/lib/credentialCrypto";
 
 /**
@@ -55,19 +56,9 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
   const pathParts = rawPathParts.filter(Boolean);
   const fullPath = pathParts.join("/");
   try {
-    // ── Unported account features (were Django-only) ───────────────────────────
-    if (fullPath.startsWith("auth/password-reset")) return notAvailable("Password reset");
-    if (/(^|\/)mfa\//.test(fullPath + "/")) {
-      const session = await requireSession(req);
-      // Supabase Auth has no TOTP factor enrolled for these users; report that truthfully.
-      if (fullPath.endsWith("mfa/status") && method === "GET") {
-        return withSessionCookies(
-          NextResponse.json({ is_enabled: false, is_pending: false, unused_recovery_codes_count: 0, confirmed_at: null }),
-          session,
-        );
-      }
-      return notAvailable("Two-factor authentication");
-    }
+    // ── Account features: 2FA, password reset, invitations (lib/accountRoutes.ts) ──
+    const account = await handleAccountRoute(req, fullPath, method);
+    if (account) return account;
 
     // ── /w/:slug/... ──────────────────────────────────────────────────────────
     if (pathParts[0] !== "w" || pathParts.length < 3) {
@@ -138,10 +129,6 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
         .eq("workspace_id", tenant.workspaceId);
       if (error) throw new Error(error.message);
       return respond(data || []);
-    }
-    if (sub === "invites" && method === "POST") {
-      await requireTenant(admin, session, wsSlug, null, ADMIN_ROLES);
-      return notAvailable("Team invitations");
     }
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   } catch (err) {

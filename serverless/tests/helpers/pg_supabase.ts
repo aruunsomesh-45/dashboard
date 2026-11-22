@@ -19,13 +19,41 @@ export interface Identity { id: string; email: string }
 
 const q = (ident: string) => `"${ident.replace(/"/g, '""')}"`;
 
+/** Splits a PostgREST select list on top-level commas (commas inside embedded `rel(...)` are kept). */
+function splitTop(sel: string): string[] {
+  const out: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of sel) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) { out.push(cur.trim()); cur = ""; } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+interface Embed { alias: string; table: string; inner: string }
+
+/** Parses `a, b, alias:table(cols), table(cols)` into plain columns + embedded resources. */
+function parseSelect(sel: string): { plain: string[] | "*"; embeds: Embed[] } {
+  const parts = splitTop(sel.trim() || "*");
+  const embeds: Embed[] = [];
+  const plain: string[] = [];
+  let star = false;
+  for (const p of parts) {
+    const m = /^(?:([a-z_][a-z0-9_]*):)?([a-z_][a-z0-9_]*)\((.*)\)$/is.exec(p);
+    if (m) { embeds.push({ alias: m[1] ?? m[2], table: m[2], inner: m[3] }); continue; }
+    if (p === "*") { star = true; continue; }
+    if (!/^[a-z_][a-z0-9_]*$/i.test(p)) throw new Error(`pg_supabase: unsupported select "${p}"`);
+    plain.push(p);
+  }
+  return { plain: star || plain.length === 0 ? "*" : plain, embeds };
+}
+
 function columns(sel: string): string {
-  const s = sel.trim();
-  if (s === "" || s === "*") return "*";
-  return s.split(",").map((c) => c.trim()).filter(Boolean).map((c) => {
-    if (!/^[a-z_][a-z0-9_]*$/i.test(c)) throw new Error(`pg_supabase: unsupported select "${c}"`);
-    return q(c);
-  }).join(", ");
+  const { plain, embeds } = parseSelect(sel);
+  if (embeds.length || plain === "*") return "*"; // embeds need the FK columns; projected afterwards
+  return plain.map(q).join(", ");
 }
 
 const DATE_OID = 1082;
@@ -49,6 +77,11 @@ function toJsonish(rows: Row[], fields: { name: string; dataTypeID: number }[]):
 function param(v: unknown): unknown {
   if (v === undefined) return null;
   if (v instanceof Uint8Array || v instanceof Date || v === null) return v;
+  // PostgREST sends JSON strings to Postgres as text, so a `\x..` hex string is valid bytea input there.
+  // PGlite binds typed params and needs bytes for bytea: convert, as Postgres' text input would.
+  if (typeof v === "string" && /^\\x(?:[0-9a-f]{2})+$/i.test(v)) {
+    return Uint8Array.from(v.slice(2).match(/../g)!, (h) => parseInt(h, 16));
+  }
   if (typeof v === "object") return JSON.stringify(v);
   return v;
 }
@@ -64,16 +97,19 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
   private op: "select" | "insert" | "upsert" | "update" | "delete" = "select";
   private selectCols: string | null = null;
   private returning = false;
-  private filters: { sql: string; val: unknown }[] = [];
+  private filters: ((params: unknown[]) => string)[] = [];
+  private orders: string[] = [];
+  private _offset: number | null = null;
+  private countOnly = false;
   private _limit: number | null = null;
-  private orderBy: string | null = null;
   private payload: Row[] = [];
   private onConflict: string | null = null;
   private cardinality: "one" | "maybe" | null = null;
 
   constructor(private db: PGlite, private mode: Mode, private table: string) {}
 
-  select(cols = "*") {
+  select(cols = "*", opts: { count?: string; head?: boolean } = {}) {
+    if (opts.head) this.countOnly = true;
     if (this.op === "select") this.selectCols = cols;
     else {
       this.returning = true;
@@ -102,7 +138,23 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
     return this;
   }
   private f(col: string, opr: string, val: unknown) {
-    this.filters.push({ sql: `${q(col)} ${opr}`, val });
+    this.filters.push((params) => { params.push(param(val)); return `${q(col)} ${opr} $${params.length}`; });
+    return this;
+  }
+  is(c: string, v: null | boolean) {
+    this.filters.push(() => `${q(c)} IS ${v === null ? "NULL" : v ? "TRUE" : "FALSE"}`);
+    return this;
+  }
+  in(c: string, vals: unknown[]) {
+    this.filters.push((params) => {
+      if (!vals.length) return "FALSE";
+      return `${q(c)} IN (${vals.map((v) => { params.push(param(v)); return `$${params.length}`; }).join(", ")})`;
+    });
+    return this;
+  }
+  range(from: number, to: number) {
+    this._offset = Math.trunc(from);
+    this._limit = Math.trunc(to - from + 1);
     return this;
   }
   eq(c: string, v: unknown) { return this.f(c, "=", v); }
@@ -112,8 +164,9 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
   lt(c: string, v: unknown) { return this.f(c, "<", v); }
   lte(c: string, v: unknown) { return this.f(c, "<=", v); }
   limit(n: number) { this._limit = n; return this; }
-  order(c: string, o: { ascending?: boolean } = {}) {
-    this.orderBy = `${q(c)} ${o.ascending === false ? "DESC" : "ASC"}`;
+  order(c: string, o: { ascending?: boolean; nullsFirst?: boolean } = {}) {
+    const nulls = o.nullsFirst === undefined ? "" : o.nullsFirst ? " NULLS FIRST" : " NULLS LAST";
+    this.orders.push(`${q(c)} ${o.ascending === false ? "DESC" : "ASC"}${nulls}`);
     return this;
   }
   maybeSingle() { this.cardinality = "maybe"; return this; }
@@ -121,16 +174,16 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
 
   private build(): { sql: string; params: unknown[] } {
     const params: unknown[] = [];
-    const where = this.filters.length
-      ? " WHERE " + this.filters.map((f) => { params.push(param(f.val)); return `${f.sql} $${params.length}`; }).join(" AND ")
-      : "";
+    const where = this.filters.length ? " WHERE " + this.filters.map((f) => f(params)).join(" AND ") : "";
     const ret = this.returning ? ` RETURNING ${columns(this.selectCols ?? "*")}` : "";
     const t = `public.${q(this.table)}`;
 
     if (this.op === "select") {
+      if (this.countOnly) return { sql: `SELECT count(*)::int AS count FROM ${t}${where}`, params };
       let sql = `SELECT ${columns(this.selectCols ?? "*")} FROM ${t}${where}`;
-      if (this.orderBy) sql += ` ORDER BY ${this.orderBy}`;
+      if (this.orders.length) sql += ` ORDER BY ${this.orders.join(", ")}`;
       if (this._limit !== null) sql += ` LIMIT ${Math.trunc(this._limit)}`;
+      if (this._offset !== null) sql += ` OFFSET ${this._offset}`;
       return { sql, params };
     }
     if (this.op === "delete") return { sql: `DELETE FROM ${t}${where}${ret}`, params };
@@ -139,7 +192,7 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
       const patch = this.payload[0];
       const p2: unknown[] = [];
       const setSql = Object.keys(patch).map((k) => { p2.push(param(patch[k])); return `${q(k)} = $${p2.length}`; }).join(", ");
-      const w2 = this.filters.length ? " WHERE " + this.filters.map((f) => { p2.push(param(f.val)); return `${f.sql} $${p2.length}`; }).join(" AND ") : "";
+      const w2 = this.filters.length ? " WHERE " + this.filters.map((f) => f(p2)).join(" AND ") : "";
       return { sql: `UPDATE ${t} SET ${setSql}${w2}${ret}`, params: p2 };
     }
     // insert / upsert
@@ -187,8 +240,16 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
       return { data: null as T, error: asPgError(e) };
     }
 
+    if (this.countOnly && this.op === "select") return { data: null as T, error: null, count: Number(rows[0]?.count ?? 0) };
     const wantsRows = this.op === "select" || this.returning;
     if (!wantsRows) return { data: null as T, error: null, status: 204 };
+    if (this.selectCols) {
+      try {
+        rows = await this.project(rows, this.selectCols);
+      } catch (e) {
+        return { data: null as T, error: asPgError(e) };
+      }
+    }
     if (this.cardinality === "one") {
       if (rows.length !== 1) {
         return { data: null as T, error: { message: `JSON object requested, multiple (or no) rows returned`, code: "PGRST116", details: `${rows.length} rows`, hint: null } };
@@ -200,6 +261,37 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
       return { data: (rows[0] ?? null) as T, error: null };
     }
     return { data: rows as T, error: null };
+  }
+
+  /**
+   * Resolves embedded resources the way PostgREST does for this schema's FK naming:
+   * many-to-one when the row has `<alias>_id` (customer:commerce_customer -> customer_id),
+   * otherwise one-to-many through `<parent entity>_id` (tenancy_workspace -> tenancy_brand.workspace_id).
+   */
+  private async project(rows: Row[], sel: string): Promise<Row[]> {
+    const { plain, embeds } = parseSelect(sel);
+    if (!embeds.length) return rows;
+    const parentFk = this.table.split("_").slice(1).join("_") + "_id";
+    const out: Row[] = [];
+    for (const r of rows) {
+      const o: Row = {};
+      if (plain === "*") Object.assign(o, r);
+      else for (const c of plain) o[c] = r[c];
+      for (const e of embeds) {
+        const child = new Builder(this.db, this.mode, e.table).select(e.inner);
+        if (`${e.alias}_id` in r) {
+          const { data, error } = await child.eq("id", r[`${e.alias}_id`]).maybeSingle();
+          if (error) throw error;
+          o[e.alias] = data;
+        } else {
+          const { data, error } = await child.eq(parentFk, r.id);
+          if (error) throw error;
+          o[e.alias] = data;
+        }
+      }
+      out.push(o);
+    }
+    return out;
   }
 
   then<R1 = Result<T>, R2 = never>(ok?: ((v: Result<T>) => R1 | PromiseLike<R1>) | null, ko?: ((e: unknown) => R2 | PromiseLike<R2>) | null) {

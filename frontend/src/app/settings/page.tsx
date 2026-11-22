@@ -167,7 +167,7 @@ export default function SettingsPage() {
     }
   };
 
-  const deployedHost = process.env.NEXT_PUBLIC_SITE_URL || "https://125east-dashboard.vercel.app";
+  const deployedHost = process.env.NEXT_PUBLIC_SITE_URL || "https://125east.vercel.app";
   const webhookBase =
     typeof window !== "undefined" &&
     !window.location.hostname.includes("localhost") &&
