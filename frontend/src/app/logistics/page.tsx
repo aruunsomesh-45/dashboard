@@ -68,7 +68,7 @@ export default function LogisticsPage() {
         apiFetch<Shipment[]>(`${base}/shipments?limit=100`),
       ]);
       setSummary(s);
-      setShipments(list);
+      setShipments(Array.isArray(list) ? list : (list as any)?.shipments || []);
     } catch (err: any) {
       setSummary(null);
       setShipments([]);
@@ -102,7 +102,7 @@ export default function LogisticsPage() {
     }
   };
 
-  const filtered = shipments.filter((s) => {
+  const filtered = (Array.isArray(shipments) ? shipments : []).filter((s) => {
     const q = search.toLowerCase();
     return (!q || s.awb.toLowerCase().includes(q)) && (statusFilter === "all" || s.status === statusFilter);
   });

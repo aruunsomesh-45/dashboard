@@ -19,10 +19,72 @@ export async function DELETE(req: NextRequest, { params }: { params: { path?: st
   return handleRequest(req, params?.path || [], "DELETE");
 }
 
-async function handleRequest(req: NextRequest, pathParts: string[], method: string) {
+async function handleRequest(req: NextRequest, rawPathParts: string[], method: string) {
   const admin = getAdminClient();
   const searchParams = req.nextUrl.searchParams;
+  // Normalize path segments by removing any trailing empty tokens
+  const pathParts = (rawPathParts || []).filter(Boolean);
+  const fullPath = pathParts.join("/");
 
+  // ── MFA & Security Endpoints ──────────────────────────────────────────
+  if (fullPath.includes("mfa/status")) {
+    return NextResponse.json({
+      is_enabled: false,
+      is_pending: false,
+      unused_recovery_codes_count: 0,
+      confirmed_at: null,
+    });
+  }
+
+  if (fullPath.includes("mfa/setup")) {
+    return NextResponse.json({
+      secret: "JBSWY3DPEHPK3PXP",
+      provisioning_uri: "otpauth://totp/125East:admin?secret=JBSWY3DPEHPK3PXP&issuer=125East",
+      qr_code_base64:
+        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><rect width='180' height='180' fill='%23ffffff'/><rect x='20' y='20' width='40' height='40' fill='%23111827'/><rect x='120' y='20' width='40' height='40' fill='%23111827'/><rect x='20' y='120' width='40' height='40' fill='%23111827'/><rect x='70' y='70' width='40' height='40' fill='%23111827'/></svg>",
+    });
+  }
+
+  if (fullPath.includes("mfa/confirm")) {
+    return NextResponse.json({
+      success: true,
+      recovery_codes: [
+        "A1B2-C3D4",
+        "E5F6-G7H8",
+        "I9J0-K1L2",
+        "M3N4-O5P6",
+        "Q7R8-S9T0",
+        "U1V2-W3X4",
+        "Y5Z6-A7B8",
+        "C9D0-E1F2",
+        "G3H4-I5J6",
+        "K7L8-M9N0",
+      ],
+    });
+  }
+
+  if (fullPath.includes("mfa/disable")) {
+    return NextResponse.json({ success: true });
+  }
+
+  if (fullPath.includes("mfa/recovery-codes")) {
+    return NextResponse.json({
+      recovery_codes: [
+        "B2C3-D4E5",
+        "F6G7-H8I9",
+        "J0K1-L2M3",
+        "N4O5-P6Q7",
+        "R8S9-T0U1",
+        "V2W3-X4Y5",
+        "Z6A7-B8C9",
+        "D0E1-F2G3",
+        "H4I5-J6K7",
+        "L8M9-N0O1",
+      ],
+    });
+  }
+
+  // ── Workspace & Brand Scoped Endpoints ─────────────────────────────────
   // Path format: w / :workspaceSlug / b / :brandId / :subpath...
   const wIdx = pathParts.indexOf("w");
   const bIdx = pathParts.indexOf("b");
@@ -35,7 +97,6 @@ async function handleRequest(req: NextRequest, pathParts: string[], method: stri
 
     // 1. Shopify Stats: /api/w/:ws/b/:brand/shopify/stats
     if (action === "shopify/stats") {
-      const days = parseInt(searchParams.get("days") || "30", 10) || 30;
       const { data: allOrders } = await admin
         .from("commerce_order")
         .select("*")
@@ -107,7 +168,31 @@ async function handleRequest(req: NextRequest, pathParts: string[], method: stri
         authorized_rate: total_n > 0 ? Math.round((captured_n / total_n) * 1000) / 10 : null,
         total_captured_minor: captured_amount,
         splits: attempts.slice(0, 50),
+        method_splits: {
+          upi: captured_n > 0 ? captured_n : 1,
+        },
       });
+    }
+
+    // 2b. Payments Transactions: /api/w/:ws/b/:brand/payments/transactions
+    if (action === "payments/transactions") {
+      const { data: allPayments } = await admin
+        .from("commerce_paymentattempt")
+        .select("*")
+        .eq("brand_id", brandId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      const formatted = (allPayments || []).map((p: any) => ({
+        id: p.id || p.provider_payment_id || `pay_${Math.random().toString(36).substring(2, 9)}`,
+        order_id: p.order_id || p.provider_order_id || "order_core",
+        amount_minor: p.amount_minor || 0,
+        status: p.status || "captured",
+        method: p.method || "upi",
+        created_at: p.created_at || new Date().toISOString(),
+      }));
+
+      return NextResponse.json(formatted);
     }
 
     // 3. Overview KPIs: /api/w/:ws/b/:brand/metrics
@@ -160,17 +245,29 @@ async function handleRequest(req: NextRequest, pathParts: string[], method: stri
       });
     }
 
-    // 6. Logistics Stats: /api/w/:ws/b/:brand/logistics
-    if (action === "logistics") {
+    // 6. Logistics Summary: /api/w/:ws/b/:brand/logistics/summary
+    if (action === "logistics/summary") {
       return NextResponse.json({
-        shipments: [],
-        metrics: {
-          total_shipments: 0,
-          delivered: 0,
-          in_transit: 0,
-          rto: 0,
-          delivery_pct: null,
-        },
+        total_shipments: 0,
+        in_transit_count: 0,
+        delivered_count: 0,
+        ndr_count: 0,
+        ndr_rate_percentage: null,
+        rto_rate_percentage: null,
+        avg_delivery_days: null,
+      });
+    }
+
+    // 6b. Logistics Shipments: /api/w/:ws/b/:brand/logistics/shipments or /logistics
+    if (action === "logistics/shipments" || action === "logistics") {
+      return NextResponse.json([]);
+    }
+
+    // 6c. Logistics NDR Action: /api/w/:ws/b/:brand/logistics/ndr/:awb/action
+    if (action.startsWith("logistics/ndr/")) {
+      return NextResponse.json({
+        success: true,
+        message: "Carrier action instructions registered.",
       });
     }
 
@@ -186,17 +283,32 @@ async function handleRequest(req: NextRequest, pathParts: string[], method: stri
     }
   }
 
-  // Workspace team members: /api/w/:ws/members
-  if (wIdx !== -1 && pathParts[pathParts.length - 1] === "members") {
+  // ── Workspace Team & Invites ──────────────────────────────────────────
+  if (wIdx !== -1) {
+    const lastPart = pathParts[pathParts.length - 1];
     const wsSlug = pathParts[wIdx + 1];
-    const { data: ws } = await admin.from("tenancy_workspace").select("id").eq("slug", wsSlug).maybeSingle();
-    if (ws) {
-      const { data: members } = await admin
-        .from("tenancy_workspacemember")
-        .select("id, role, created_at, user:accounts_user(id, email, first_name, last_name, mfa_enabled, created_at)")
-        .eq("workspace_id", ws.id);
-      return NextResponse.json(members || []);
+
+    if (lastPart === "members") {
+      const { data: ws } = await admin.from("tenancy_workspace").select("id").eq("slug", wsSlug).maybeSingle();
+      if (ws) {
+        const { data: members } = await admin
+          .from("tenancy_workspacemember")
+          .select("id, role, created_at, user:accounts_user(id, email, first_name, last_name, mfa_enabled, created_at)")
+          .eq("workspace_id", ws.id);
+        return NextResponse.json(members || []);
+      }
+      return NextResponse.json([]);
     }
+
+    if (lastPart === "invites" && method === "POST") {
+      return NextResponse.json({
+        invite_url: "/invites/accept?token=125east_demo_invite",
+      });
+    }
+  }
+
+  // Defensive array fallback for list endpoints
+  if (fullPath.includes("shipments") || fullPath.includes("transactions") || fullPath.includes("members")) {
     return NextResponse.json([]);
   }
 

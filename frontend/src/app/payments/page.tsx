@@ -81,7 +81,7 @@ export default function PaymentsPage() {
         apiFetch<Transaction[]>(`${base}/transactions?limit=100`),
       ]);
       setStats(s);
-      setPayments(t);
+      setPayments(Array.isArray(t) ? t : (t as any)?.transactions || []);
     } catch (err: any) {
       setStats(null);
       setPayments([]);
@@ -94,7 +94,7 @@ export default function PaymentsPage() {
   useEffect(() => {
     load();
   }, [load]);
-  const filtered = payments.filter((p) => {
+  const filtered = (Array.isArray(payments) ? payments : []).filter((p) => {
     const q = search.toLowerCase();
     const matchSearch = !q || p.id.toLowerCase().includes(q) || p.order_id.toLowerCase().includes(q);
     return matchSearch && (statusFilter === "all" || p.status === statusFilter) && (methodFilter === "all" || p.method === methodFilter);

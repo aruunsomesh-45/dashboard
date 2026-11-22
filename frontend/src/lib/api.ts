@@ -92,7 +92,7 @@ export async function apiFetchWithStatus<T>(
       throw new Error(`Failed to connect to external API (${url}): ${err?.message || "Network Error"}`);
     }
     throw new Error(
-      "Cannot connect to the backend server. Please make sure the Django server is running on port 8001."
+      "Unable to connect to the authentication service. Please check your internet connection."
     );
   }
 

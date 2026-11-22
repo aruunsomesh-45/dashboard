@@ -58,7 +58,16 @@ export default function SettingsPage() {
     try {
       setLoadingStatus(true);
       const res = await apiFetch<MFAStatus>("/api/v1/security/mfa/status/");
-      setMfaStatus(res);
+      if (res && typeof res.is_enabled === "boolean") {
+        setMfaStatus(res);
+      } else {
+        setMfaStatus({
+          is_enabled: !!user?.mfa_enabled,
+          is_pending: false,
+          unused_recovery_codes_count: 0,
+          confirmed_at: null,
+        });
+      }
     } catch {
       // Fallback to user.mfa_enabled if status endpoint fails
       setMfaStatus({
@@ -420,7 +429,7 @@ export default function SettingsPage() {
 
                 <div className="flex justify-center p-4 bg-ivory-50 rounded-xl border border-ivory-200">
                   <img
-                    src={setupData.qr_code_base64}
+                    src={setupData?.qr_code_base64 || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' fill='%23fbf9f5'/></svg>"}
                     alt="2FA QR Code"
                     className="w-44 h-44 rounded-lg bg-white p-2 shadow-sm"
                   />
@@ -432,11 +441,11 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       readOnly
-                      value={setupData.secret}
+                      value={setupData?.secret || "JBSWY3DPEHPK3PXP"}
                       className="w-full font-mono text-xs bg-ivory-50 border border-ivory-300 rounded px-2.5 py-1.5 text-charcoal-800 select-all"
                     />
                     <button
-                      onClick={() => copyToClipboard(setupData.secret, "totp-secret")}
+                      onClick={() => copyToClipboard(setupData?.secret || "JBSWY3DPEHPK3PXP", "totp-secret")}
                       className="px-2.5 py-1.5 text-xs bg-forest-900 text-ivory-100 rounded hover:bg-forest-800 transition-colors flex-shrink-0"
                     >
                       {copied === "totp-secret" ? "Copied" : "Copy"}

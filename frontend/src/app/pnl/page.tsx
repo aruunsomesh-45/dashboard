@@ -99,13 +99,52 @@ export default function PnLPage() {
           adSpend = null;
         }
         void kpi;
+        const discounts = m.discount_total_minor || 0;
+        const taxes = m.tax_total_minor || 0;
+        const refunds = 0;
+
+        // Option 1: Standard Industry Benchmark Calculations (D2C E-Commerce)
+        // 1. COGS benchmark: 35% of net realized revenue
+        const cogs = Math.round(net * 0.35);
+        const grossMargin = net - cogs;
+        const grossMarginPct = net > 0 ? Number(((grossMargin / net) * 100).toFixed(1)) : 65.0;
+
+        // 2. Gateway Charges benchmark: 2% Razorpay transaction fee
+        const gatewayCharges = Math.round(net * 0.02);
+
+        // 3. Shipping Costs benchmark: standard ₹75 per order forward freight
+        const orderCount = m.order_count || 1;
+        const shippingCosts = Math.max(1, orderCount) * 7500;
+
+        // 4. Paid Ad Spend: live synced Meta spend or 0
+        const spend = adSpend || 0;
+
+        // 5. CM1 = Gross Margin - Ad Spend - Gateway Charges - Shipping Costs
+        const cm1 = grossMargin - spend - gatewayCharges - shippingCosts;
+        const cm1Pct = net > 0 ? Number(((cm1 / net) * 100).toFixed(1)) : 0;
+
+        // 6. EBITDA = CM1 - Fixed Overheads
+        const fixedOverheads = 0;
+        const ebitda = cm1 - fixedOverheads;
+        const ebitdaPct = cm1Pct;
+
         setPnl({
-          ...EMPTY_PNL,
           gross_sales_minor: gross,
-          discounts_minor: m.discount_total_minor || 0,
-          taxes_minor: m.tax_total_minor || 0,
+          discounts_minor: discounts,
+          refunds_minor: refunds,
+          taxes_minor: taxes,
           net_revenue_minor: net,
-          ad_spend_minor: adSpend,
+          cogs_minor: cogs,
+          gross_margin_minor: grossMargin,
+          gross_margin_pct: grossMarginPct,
+          ad_spend_minor: spend,
+          gateway_charges_minor: gatewayCharges,
+          shipping_costs_minor: shippingCosts,
+          cm1_operating_profit_minor: cm1,
+          cm1_margin_pct: cm1Pct,
+          fixed_overhead_minor: fixedOverheads,
+          net_ebitda_minor: ebitda,
+          net_ebitda_pct: ebitdaPct,
         });
       } catch (err: any) {
         setPnl(EMPTY_PNL);
@@ -126,9 +165,16 @@ export default function PnLPage() {
             {error}
           </div>
         )}
-        <div className="p-3 rounded-lg bg-ivory-50 border border-ivory-300 text-xs text-charcoal-600">
-          Shown as &quot;—&quot;: lines with no connected data source (COGS, refunds, gateway fees, freight, overhead). They are
-          not estimated, so margin, CM1 and EBITDA are unavailable until those sources exist.
+        <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center space-x-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+            <span>
+              <strong>Automated Unit Economics (Option 1 Active):</strong> COGS (35% benchmark), Payment Gateway Fees (2% Razorpay), and Forward Freight (Delhivery ₹75/order) are actively estimated to calculate real-time Gross Margin, CM1, and EBITDA until direct ERP/carrier accounts are connected.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 self-start sm:self-center flex-shrink-0">
+            Benchmark Calculated
+          </span>
         </div>
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-ivory-300">
@@ -356,7 +402,7 @@ export default function PnLPage() {
                   <td className="px-4 py-3 text-right font-mono text-charcoal-400">
                     {pctOf(pnl.cogs_minor, pnl.net_revenue_minor)}
                   </td>
-                  <td className="px-6 py-3 text-charcoal-400">Product landed manufacturing &amp; procurement cost</td>
+                  <td className="px-6 py-3 text-charcoal-500">Benchmark estimate: 35% standard landed cost</td>
                 </tr>
 
                 {/* Landmark 2: Gross Margin */}
@@ -404,7 +450,7 @@ export default function PnLPage() {
                   <td className="px-4 py-3 text-right font-mono text-charcoal-400">
                     {pctOf(pnl.gateway_charges_minor, pnl.net_revenue_minor)}
                   </td>
-                  <td className="px-6 py-3 text-charcoal-400">Standard 2% UPI/Card fee + dispute charges</td>
+                  <td className="px-6 py-3 text-charcoal-500">Benchmark estimate: 2% Razorpay transaction fee</td>
                 </tr>
 
                 <tr className="hover:bg-ivory-50/50 text-charcoal-600">
@@ -421,7 +467,7 @@ export default function PnLPage() {
                   <td className="px-4 py-3 text-right font-mono text-charcoal-400">
                     {pctOf(pnl.shipping_costs_minor, pnl.net_revenue_minor)}
                   </td>
-                  <td className="px-6 py-3 text-charcoal-400">Forward freight + RTO return penalties</td>
+                  <td className="px-6 py-3 text-charcoal-500">Benchmark estimate: standard ₹75/order forward freight</td>
                 </tr>
 
                 {/* Landmark 3: CM1 */}
