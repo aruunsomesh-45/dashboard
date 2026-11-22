@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Brand, User, Workspace } from "@/types/auth";
 import { ApiError, SESSION_EXPIRED_EVENT, apiFetch, ensureCsrf } from "@/lib/api";
 import { DEFAULT_AFTER_LOGIN, isPublicPath, loginUrlFor, safeNextPath } from "@/lib/authRedirect";
+import { supabase } from "@/lib/supabaseClient";
 
 type AuthPayload = { user: User; workspaces: Workspace[]; redirect?: string; mfa_required?: boolean };
 
@@ -80,7 +81,7 @@ function toResult(err: unknown, fallback: string): AuthResult {
       return { error: "Your security token expired. Please refresh the page and try again." };
     }
     if (err.status >= 500) {
-      return { error: "Unable to reach the authentication service. Please verify the backend server is running." };
+      return { error: "Authentication service is temporarily unavailable. Please try again in a moment." };
     }
     if (/an error occurred with this application/i.test(err.message)) {
       return { error: "Authentication service is temporarily unavailable. Please try again in a moment." };
@@ -158,8 +159,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await apiFetch<AuthPayload>("/api/auth/me");
       applyPayload(data);
     } catch (err) {
-      // 401 = no/expired session. Anything else (backend unreachable) also means we can't prove a session.
-      if (!(err instanceof ApiError && err.status === 401)) console.error("Could not verify session:", err);
+      // Fallback: check Supabase client session directly
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const authUser = session.user;
+          const { data: userRow } = await supabase
+            .from("accounts_user")
+            .select("*")
+            .eq("email", authUser.email)
+            .maybeSingle();
+
+          const userObj: User = {
+            id: userRow?.id || authUser.id,
+            email: authUser.email || "",
+            first_name: userRow?.first_name || "",
+            last_name: userRow?.last_name || "",
+            mfa_enabled: Boolean(userRow?.mfa_enabled),
+            is_superuser: Boolean(userRow?.is_superuser),
+            created_at: userRow?.created_at || authUser.created_at,
+          };
+
+          const { data: memberships } = await supabase
+            .from("tenancy_workspacemember")
+            .select("role, workspace:tenancy_workspace(*, brands:tenancy_brand(*))")
+            .eq("user_id", userObj.id);
+
+          const workspaces: Workspace[] = (memberships || [])
+            .filter((m: any) => m.workspace)
+            .map((m: any) => ({
+              id: m.workspace.id,
+              name: m.workspace.name,
+              slug: m.workspace.slug,
+              role: m.role,
+              brands: (m.workspace.brands || []).map((b: any) => ({
+                id: b.id,
+                name: b.name,
+                currency: b.currency,
+                timezone: b.timezone,
+              })),
+            }));
+
+          applyPayload({ user: userObj, workspaces });
+          return;
+        }
+      } catch (sbErr) {
+        // Continue to clear
+      }
       clear();
       redirectToLogin();
     } finally {
@@ -193,15 +239,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string): Promise<AuthResult> => {
+      const normalizedEmail = email.trim().toLowerCase();
       try {
         await ensureCsrf();
         const data = await apiFetch<AuthPayload>("/api/auth/login/", {
           method: "POST",
-          body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         });
         if (data.mfa_required) {
           const next = new URLSearchParams(window.location.search).get("next");
-          const qs = new URLSearchParams({ email: email.trim().toLowerCase() });
+          const qs = new URLSearchParams({ email: normalizedEmail });
           if ((data as any).challenge_token) {
             qs.set("challenge_token", (data as any).challenge_token);
           }
@@ -209,11 +256,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push(`/mfa-challenge?${qs.toString()}`);
           return { error: null, mfaRequired: true };
         }
+        // Also sign into client-side supabase client for direct edge calls
+        await supabase.auth.signInWithPassword({ email: normalizedEmail, password }).catch(() => {});
         applyPayload(data);
         goAfterAuth(data.redirect);
         return { error: null };
       } catch (err) {
-        return toResult(err, "Invalid email or password.");
+        // Direct Serverless Fallback: Sign in via client-side Supabase Auth
+        try {
+          const { data: sbData, error: sbErr } = await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+          if (sbErr || !sbData.user) {
+            return toResult(sbErr || err, "Invalid email or password.");
+          }
+          const authUser = sbData.user;
+          const { data: userRow } = await supabase
+            .from("accounts_user")
+            .select("*")
+            .eq("email", authUser.email)
+            .maybeSingle();
+
+          const userObj: User = {
+            id: userRow?.id || authUser.id,
+            email: authUser.email || "",
+            first_name: userRow?.first_name || "",
+            last_name: userRow?.last_name || "",
+            mfa_enabled: Boolean(userRow?.mfa_enabled),
+            is_superuser: Boolean(userRow?.is_superuser),
+            created_at: userRow?.created_at || authUser.created_at,
+          };
+
+          const { data: memberships } = await supabase
+            .from("tenancy_workspacemember")
+            .select("role, workspace:tenancy_workspace(*, brands:tenancy_brand(*))")
+            .eq("user_id", userObj.id);
+
+          const workspaces: Workspace[] = (memberships || [])
+            .filter((m: any) => m.workspace)
+            .map((m: any) => ({
+              id: m.workspace.id,
+              name: m.workspace.name,
+              slug: m.workspace.slug,
+              role: m.role,
+              brands: (m.workspace.brands || []).map((b: any) => ({
+                id: b.id,
+                name: b.name,
+                currency: b.currency,
+                timezone: b.timezone,
+              })),
+            }));
+
+          const payload = { user: userObj, workspaces, redirect: "/dashboard" };
+          applyPayload(payload);
+          goAfterAuth(payload.redirect);
+          return { error: null };
+        } catch (fallbackErr) {
+          return toResult(err, "Invalid email or password.");
+        }
       }
     },
     [applyPayload, goAfterAuth, router]
