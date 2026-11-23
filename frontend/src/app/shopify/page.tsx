@@ -69,9 +69,11 @@ interface ShopifyStatsResponse {
     tax_total_minor: number;
     shipping_total_minor: number;
     net_sales_minor: number;
+    refunds_minor: number;
     order_count: number;
     aov_minor: number;
   };
+  change_pct?: { net_sales: number | null; aov: number | null; orders: number | null };
   funnel: {
     placed: number;
     paid: number;
@@ -83,6 +85,26 @@ interface ShopifyStatsResponse {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Real period-over-period change from the API; "—" when there is no previous period to compare. */
+function ChangeBadge({ pct, label }: { pct: number | null | undefined; label: string }) {
+  if (pct == null) {
+    return (
+      <div className="flex items-center space-x-1 text-charcoal-400 text-xs">
+        <span>—</span>
+        <span className="font-normal">{label}</span>
+      </div>
+    );
+  }
+  const up = pct >= 0;
+  return (
+    <div className={`flex items-center space-x-1 text-xs font-semibold ${up ? "text-emerald-600" : "text-red-600"}`}>
+      <TrendingUp className={`w-3.5 h-3.5 ${up ? "" : "rotate-180"}`} />
+      <span>{up ? "+" : ""}{pct.toFixed(1)}%</span>
+      <span className="text-charcoal-400 font-normal">{label}</span>
+    </div>
+  );
+}
 
 function paise(minor: number, currency: string = "INR"): string {
   const sym = currency === "USD" ? "$" : "₹";
@@ -289,17 +311,13 @@ export default function ShopifyDashboard() {
             <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
               <span>Net Sales ({days}D)</span>
               <span className="p-1 rounded bg-emerald-50 text-emerald-700 text-[10px] font-mono">
-                gross - disc - tax
+                gross − disc − refunds
               </span>
             </div>
             <div className="text-2xl font-bold text-charcoal-900 tracking-tight">
               {loading ? "..." : paise(data?.metrics.net_sales_minor || 0, data?.brand.currency)}
             </div>
-            <div className="flex items-center space-x-1 text-emerald-600 text-xs font-semibold">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+18.4%</span>
-              <span className="text-charcoal-400 font-normal">vs prev {days}d</span>
-            </div>
+            <ChangeBadge pct={data?.change_pct?.net_sales} label={`vs prev ${days}d`} />
             <div className="pt-2 border-t border-ivory-200 text-[11px] text-charcoal-400 flex justify-between">
               <span>Gross: {paise(data?.metrics.gross_sales_minor || 0, data?.brand.currency)}</span>
               <span className="text-terracotta-500 font-mono">Canonical Core</span>
@@ -317,11 +335,7 @@ export default function ShopifyDashboard() {
             <div className="text-2xl font-bold text-charcoal-900 tracking-tight">
               {loading ? "..." : paise(data?.metrics.aov_minor || 0, data?.brand.currency)}
             </div>
-            <div className="flex items-center space-x-1 text-emerald-600 text-xs font-semibold">
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>+6.2%</span>
-              <span className="text-charcoal-400 font-normal">paise precision</span>
-            </div>
+            <ChangeBadge pct={data?.change_pct?.aov} label={`vs prev ${days}d`} />
             <div className="pt-2 border-t border-ivory-200 text-[11px] text-charcoal-400 flex justify-between">
               <span>Total Orders: {data?.metrics.order_count || 0}</span>
               <span className="text-charcoal-500">Integer math</span>
@@ -346,7 +360,7 @@ export default function ShopifyDashboard() {
             </div>
             <div className="pt-2 border-t border-ivory-200 text-[11px] text-charcoal-400 flex justify-between">
               <span>Tax: {paise(data?.metrics.tax_total_minor || 0, data?.brand.currency)}</span>
-              <span className="text-emerald-600 font-medium">Reconciled</span>
+              <span className="text-charcoal-500">Excluded from net</span>
             </div>
           </div>
 
@@ -359,15 +373,15 @@ export default function ShopifyDashboard() {
             <div className="text-2xl font-bold text-charcoal-900 tracking-tight">
               {data?.metrics.order_count
                 ? `${Math.round(((data.funnel.fulfilled || 0) / data.metrics.order_count) * 100)}%`
-                : "100%"}
+                : "—"}
             </div>
             <div className="flex items-center space-x-1 text-emerald-600 text-xs font-semibold">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{data?.funnel.fulfilled || 0} delivered or shipped</span>
+              <span>{data?.funnel.fulfilled || 0} fulfilled</span>
             </div>
             <div className="pt-2 border-t border-ivory-200 text-[11px] text-charcoal-400 flex justify-between">
               <span>Pending: {data?.funnel.unfulfilled || 0}</span>
-              <span className="text-amber-600 font-medium">In Warehouse</span>
+              <span className="text-amber-600 font-medium">Unfulfilled</span>
             </div>
           </div>
         </div>
@@ -387,7 +401,7 @@ export default function ShopifyDashboard() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-charcoal-600">Gross Sales</span>
+                <span className="text-charcoal-600">Gross Sales (before discounts)</span>
                 <span className="font-mono font-semibold text-charcoal-900">
                   {paise(data?.metrics.gross_sales_minor || 0, data?.brand.currency)}
                 </span>
@@ -402,36 +416,40 @@ export default function ShopifyDashboard() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-charcoal-500">
-                <span>- Taxes (GST / VAT)</span>
-                <span className="font-mono">
-                  -{paise(data?.metrics.tax_total_minor || 0, data?.brand.currency)}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-blue-700">
-                <span>+ Shipping Collected</span>
+              <div className="flex items-center justify-between text-xs text-red-600">
+                <span>- Refunds (fully refunded orders)</span>
                 <span className="font-mono font-semibold">
-                  +{paise(data?.metrics.shipping_total_minor || 0, data?.brand.currency)}
+                  -{paise(data?.metrics.refunds_minor || 0, data?.brand.currency)}
                 </span>
               </div>
 
               <div className="pt-3 border-t border-ivory-300 flex items-center justify-between text-sm font-bold">
-                <span className="text-charcoal-900">Net Recognized Sales</span>
+                <span className="text-charcoal-900">Net Sales</span>
                 <span className="font-mono text-terracotta-600">
                   {paise(data?.metrics.net_sales_minor || 0, data?.brand.currency)}
                 </span>
+              </div>
+
+              <div className="pt-2 space-y-1 text-[11px] text-charcoal-500">
+                <div className="flex justify-between">
+                  <span>Memo: tax collected (not revenue)</span>
+                  <span className="font-mono">{paise(data?.metrics.tax_total_minor || 0, data?.brand.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Memo: shipping charged (not in net sales)</span>
+                  <span className="font-mono">{paise(data?.metrics.shipping_total_minor || 0, data?.brand.currency)}</span>
+                </div>
               </div>
             </div>
 
             <div className="pt-3 bg-ivory-50 p-3 rounded-lg border border-ivory-200 text-[11px] text-charcoal-600 space-y-1">
               <div className="font-semibold text-charcoal-900 flex items-center space-x-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Zero Float Rounding Guarantee</span>
+                <span>Integer Money Math</span>
               </div>
               <p>
-                Stored as <code>BigIntegerField</code> minor units (paise). Verified against
-                Shopify Financial API without float truncation.
+                Amounts are stored as whole paise (BIGINT) when orders sync from Shopify, so totals
+                are summed without floating-point rounding.
               </p>
             </div>
           </div>

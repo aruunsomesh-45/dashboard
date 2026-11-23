@@ -84,6 +84,8 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
             return respond(await shopifyStats(admin, tenant, days));
           case "metrics":
             return respond(await overviewMetrics(admin, tenant, days));
+          case "pnl":
+            return respond(await profitAndLoss(admin, tenant, days));
           case "payments/stats":
           case "payments":
             return respond(await paymentStats(admin, tenant));
@@ -167,21 +169,65 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 
 const sum = (rows: any[], key: string) => rows.reduce((s, r) => s + (Number(r[key]) || 0), 0);
 
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * Revenue for a set of Shopify orders, in minor units. How the stored columns relate (see the Shopify mapper):
+ *   gross_amount = Shopify total_price: AFTER discounts, INCLUDING tax and shipping (what the customer paid)
+ *   net_sales    = gross_amount - tax - shipping (product revenue after discounts)
+ * So the P&L waterfall is:
+ *   gross_sales (before discounts) = net_sales + discount
+ *   - discounts
+ *   - refunds (orders Shopify marks fully refunded; partial refund amounts are not synced)
+ *   = net_sales_minor
+ * Cancelled and voided orders are never revenue. Tax and shipping charged are reported alongside, not in net sales.
+ */
+function revenueSummary(orders: any[]) {
+  const valid = orders.filter((o) => !o.cancelled_at && o.financial_status !== "voided");
+  const refunded = valid.filter((o) => o.financial_status === "refunded");
+  const kept = valid.filter((o) => o.financial_status !== "refunded");
+  const discounts = sum(valid, "discount_amount");
+  const gross = sum(valid, "net_sales") + discounts;
+  const refunds = sum(refunded, "net_sales");
+  const net = gross - discounts - refunds;
+  const count = kept.length;
+  return {
+    gross_sales_minor: gross,
+    discount_total_minor: discounts,
+    refunds_minor: refunds,
+    net_sales_minor: net,
+    tax_total_minor: sum(kept, "tax_amount"),
+    shipping_total_minor: sum(kept, "shipping_amount"),
+    order_total_minor: sum(kept, "gross_amount"),
+    order_count: count,
+    refunded_order_count: refunded.length,
+    partially_refunded_order_count: kept.filter((o) => o.financial_status === "partially_refunded").length,
+    aov_minor: count ? Math.round(net / count) : 0,
+  };
+}
+
+/** % change from `prev` to `cur`; null when there is no previous value to compare against. */
+const changePct = (cur: number, prev: number) => (prev > 0 ? round1(((cur - prev) / prev) * 100) : null);
+
 async function shopifyStats(admin: SupabaseClient, tenant: TenantContext, days: number) {
   const brandId = tenant.brand!.id;
-  const orders = await fetchAll<any>((from, to) =>
+  const since = sinceIso(days);
+  // Two windows: the selected period and the one before it (for the "vs previous period" comparison).
+  const all = await fetchAll<any>((from, to) =>
     admin
       .from("commerce_order")
       .select(
         "id, provider_id, order_number, currency, gross_amount, discount_amount, tax_amount, shipping_amount, net_sales, financial_status, fulfillment_status, cancelled_at, source_created_at, customer:commerce_customer(email, first_name, last_name)",
       )
       .eq("brand_id", brandId)
-      .gte("source_created_at", sinceIso(days))
+      .gte("source_created_at", sinceIso(days * 2))
       .order("source_created_at", { ascending: false })
       .range(from, to),
   );
-  const live = orders.filter((o) => !o.cancelled_at);
-  const net = sum(live, "net_sales");
+  const orders = all.filter((o) => o.source_created_at >= since);
+  const current = revenueSummary(orders);
+  const previous = revenueSummary(all.filter((o) => o.source_created_at < since));
+  const live = orders.filter((o) => !o.cancelled_at && o.financial_status !== "voided" && o.financial_status !== "refunded");
   const count = live.length;
 
   const recent = orders.slice(0, 50);
@@ -194,14 +240,16 @@ async function shopifyStats(admin: SupabaseClient, tenant: TenantContext, days: 
   return {
     brand: tenant.brand,
     days,
-    metrics: {
-      gross_sales_minor: sum(live, "gross_amount"),
-      net_sales_minor: net,
-      discount_total_minor: sum(live, "discount_amount"),
-      tax_total_minor: sum(live, "tax_amount"),
-      shipping_total_minor: sum(live, "shipping_amount"),
-      order_count: count,
-      aov_minor: count ? Math.round(net / count) : 0,
+    metrics: current,
+    previous: {
+      net_sales_minor: previous.net_sales_minor,
+      aov_minor: previous.aov_minor,
+      order_count: previous.order_count,
+    },
+    change_pct: {
+      net_sales: changePct(current.net_sales_minor, previous.net_sales_minor),
+      aov: changePct(current.aov_minor, previous.aov_minor),
+      orders: changePct(current.order_count, previous.order_count),
     },
     funnel: {
       placed: count,
@@ -237,7 +285,7 @@ async function overviewMetrics(admin: SupabaseClient, tenant: TenantContext, day
     fetchAll<any>((from, to) =>
       admin
         .from("commerce_order")
-        .select("net_sales, fulfillment_status, financial_status, cancelled_at, source_created_at")
+        .select("net_sales, discount_amount, fulfillment_status, financial_status, cancelled_at, source_created_at")
         .eq("brand_id", brandId)
         .is("cancelled_at", null)
         .range(from, to),
@@ -247,7 +295,7 @@ async function overviewMetrics(admin: SupabaseClient, tenant: TenantContext, day
     ),
   ]);
   const toShip = orders.filter((o) => o.fulfillment_status === "unfulfilled" && o.financial_status === "paid").length;
-  const windowNet = sum(orders.filter((o) => o.source_created_at && o.source_created_at >= since), "net_sales");
+  const windowNet = revenueSummary(orders.filter((o) => o.source_created_at && o.source_created_at >= since)).net_sales_minor;
   const spend = sum(ads, "spend_minor");
   const na = { value: null, available: false };
   return {
@@ -260,6 +308,91 @@ async function overviewMetrics(admin: SupabaseClient, tenant: TenantContext, day
       number_of_disputes: na, // no dispute source is synced
       organic_engagement: na,
     },
+  };
+}
+
+/**
+ * P&L ("Option 1": benchmark unit economics). Revenue and Meta ad spend are real synced data for the
+ * selected window. COGS, gateway fees and freight are ESTIMATES from the benchmarks below, flagged as such
+ * in the response, until real cost sources are connected. Fixed overheads are not tracked, so EBITDA is
+ * null rather than a number that silently assumes zero overheads.
+ */
+const PNL_ASSUMPTIONS = {
+  cogs_pct_of_net: 35,
+  gateway_fee_pct_of_net: 2,
+  freight_per_order_minor: 7500,
+} as const;
+
+async function profitAndLoss(admin: SupabaseClient, tenant: TenantContext, days: number) {
+  const brandId = tenant.brand!.id;
+  const since = sinceIso(days);
+  const [orders, ads, meta] = await Promise.all([
+    fetchAll<any>((from, to) =>
+      admin
+        .from("commerce_order")
+        .select("gross_amount, discount_amount, tax_amount, shipping_amount, net_sales, financial_status, cancelled_at, source_created_at")
+        .eq("brand_id", brandId)
+        .gte("source_created_at", since)
+        .range(from, to),
+    ),
+    fetchAll<any>((from, to) =>
+      admin.from("analytics_factadsdaily").select("spend_minor").eq("brand_id", brandId).gte("fact_date", since.slice(0, 10)).range(from, to),
+    ),
+    integrationStatus(admin, brandId, "meta_ads"),
+  ]);
+
+  const rev = revenueSummary(orders);
+  const net = rev.net_sales_minor;
+  const pct = (v: number | null) => (v == null || net <= 0 ? null : round1((v / net) * 100));
+
+  const metaConnected = !!meta && meta.status !== "disconnected";
+  // Real spend for the same window; null (shown as "—") only when Meta was never connected and nothing is synced.
+  const adSpend = ads.length || metaConnected ? sum(ads, "spend_minor") : null;
+
+  const cogs = Math.round((net * PNL_ASSUMPTIONS.cogs_pct_of_net) / 100);
+  const gateway = Math.round((net * PNL_ASSUMPTIONS.gateway_fee_pct_of_net) / 100);
+  const freight = rev.order_count * PNL_ASSUMPTIONS.freight_per_order_minor;
+  const grossMargin = net - cogs;
+  const cm1 = grossMargin - (adSpend ?? 0) - gateway - freight;
+
+  return {
+    brand: tenant.brand,
+    days,
+    revenue: rev,
+    lines: {
+      gross_sales_minor: rev.gross_sales_minor,
+      discounts_minor: rev.discount_total_minor,
+      refunds_minor: rev.refunds_minor,
+      net_revenue_minor: net,
+      cogs_minor: cogs,
+      gross_margin_minor: grossMargin,
+      ad_spend_minor: adSpend,
+      gateway_charges_minor: gateway,
+      shipping_costs_minor: freight,
+      cm1_minor: cm1,
+      fixed_overhead_minor: null,
+      ebitda_minor: null,
+    },
+    pct_of_net: {
+      gross_sales: pct(rev.gross_sales_minor),
+      discounts: pct(rev.discount_total_minor),
+      refunds: pct(rev.refunds_minor),
+      cogs: pct(cogs),
+      gross_margin: pct(grossMargin),
+      ad_spend: pct(adSpend),
+      gateway_charges: pct(gateway),
+      shipping_costs: pct(freight),
+      cm1: pct(cm1),
+      ebitda: null,
+    },
+    memo: {
+      tax_collected_minor: rev.tax_total_minor,
+      shipping_charged_minor: rev.shipping_total_minor,
+      partially_refunded_order_count: rev.partially_refunded_order_count,
+    },
+    estimated: ["cogs_minor", "gateway_charges_minor", "shipping_costs_minor"],
+    assumptions: PNL_ASSUMPTIONS,
+    sources: { ad_spend: adSpend == null ? "not_connected" : "meta_ads" },
   };
 }
 

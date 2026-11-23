@@ -348,7 +348,7 @@ export default function ConnectAppsPage() {
           );
           setSyncNotice(res.message || "Shopify sync completed.");
         } else if (provider === "meta_ads") {
-          // Django has an equivalent session-authenticated endpoint (QA 2026-11-21).
+          // Same-origin proxy route (session cookie) for the Meta Ads sync.
           const res = await apiFetch<{ message?: string }>(
             `/api/w/${ws.slug}/b/${br.id}/marketing/sync-now/`,
             { method: "POST" }

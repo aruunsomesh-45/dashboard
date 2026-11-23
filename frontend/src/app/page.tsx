@@ -113,8 +113,8 @@ export default function OverviewPage() {
               Executive Overview
             </h2>
             <p className="text-xs text-charcoal-500 mt-0.5">
-              Live normalized metrics cockpit for{" "}
-              <strong>{currentBrand?.name || "Active Brand"}</strong> as per calculations specification.
+              Key metrics for{" "}
+              <strong>{currentBrand?.name || "Active Brand"}</strong>, last {days} days.
             </p>
           </div>
 
@@ -134,7 +134,7 @@ export default function OverviewPage() {
 
             <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-200 shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{loading ? "Loading…" : "From stored data"}</span>
+              <span>{loading ? "Loading…" : "From synced data"}</span>
             </span>
           </div>
         </div>
@@ -164,8 +164,8 @@ export default function OverviewPage() {
                 {loading ? "..." : paise(metrics.shopify.revenue_per_day_minor)}
               </div>
             </div>
-            <div className="text-[10px] text-charcoal-400 font-mono truncate" title="∑(Gross - Discounts - Refunds - Taxes)">
-              ∑(Gross - Disc - Ref - Tax)
+            <div className="text-[10px] text-charcoal-400 font-mono truncate" title="Net sales (after discounts and refunds, excluding tax and shipping) divided by the number of days">
+              Net sales ÷ days
             </div>
           </div>
 
@@ -341,7 +341,7 @@ export default function OverviewPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-charcoal-900">Meta Marketing API</div>
-                    <div className="text-[11px] text-charcoal-500">28-day purchase conversion window • Blended CAC tracking</div>
+                    <div className="text-[11px] text-charcoal-500">Blended ROAS from synced ad spend</div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -357,7 +357,7 @@ export default function OverviewPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-charcoal-900">Delhivery Express &amp; Logistics</div>
-                    <div className="text-[11px] text-charcoal-500">Canonical carrier state machine • AWB fulfillment queue</div>
+                    <div className="text-[11px] text-charcoal-500">Shipment tracking sync not available yet; unfulfilled count from Shopify</div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -389,7 +389,7 @@ export default function OverviewPage() {
                   </div>
                   <div>
                     <div className="font-semibold text-charcoal-900">Instagram Organic Presence</div>
-                    <div className="text-[11px] text-charcoal-500">Daily midnight profile snapshot • Reel discovery analysis</div>
+                    <div className="text-[11px] text-charcoal-500">Engagement rate not computed yet</div>
                   </div>
                 </div>
                 <div className="text-right">
@@ -414,23 +414,23 @@ export default function OverviewPage() {
 
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-lg bg-ivory-50 border border-ivory-200 space-y-1">
-                <div className="font-semibold text-charcoal-900">Zero Float Drift</div>
+                <div className="font-semibold text-charcoal-900">Integer Money Math</div>
                 <p className="text-[11px] text-charcoal-500">
-                  All money metrics in Shopify, Razorpay, and Meta are computed in integer paise before UI display.
+                  Shopify, Razorpay and Meta amounts are stored and summed in whole paise before display.
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-ivory-50 border border-ivory-200 space-y-1">
-                <div className="font-semibold text-charcoal-900">Deterministic Multi-Payment Links</div>
+                <div className="font-semibold text-charcoal-900">Tenant Isolation</div>
                 <p className="text-[11px] text-charcoal-500">
-                  Multiple payments link strictly on gateway reference and order IDs without name/amount collisions.
+                  Every request checks your session, workspace membership and brand ownership before any data is read.
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-ivory-50 border border-ivory-200 space-y-1">
-                <div className="font-semibold text-charcoal-900">Safe Logistics State Machine</div>
+                <div className="font-semibold text-charcoal-900">No Invented Numbers</div>
                 <p className="text-[11px] text-charcoal-500">
-                  Courier tracking codes safely map to canonical states (Delivered, In Transit, NDR) with safe in-transit fallback.
+                  A metric without a connected data source shows “—” instead of a placeholder value.
                 </p>
               </div>
             </div>

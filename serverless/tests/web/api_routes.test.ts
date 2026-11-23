@@ -150,6 +150,77 @@ Deno.test({ ...opts, name: "Next.js API routes", fn: async (t) => {
     assertEquals(r.body.daily_trends.length, 1);
   });
 
+  await t.step("pnl: server-side waterfall reconciles; ad spend follows the selected window; EBITDA not faked", async () => {
+    // Another Meta fact 20 days ago: inside a 30-day window, outside a 7-day one.
+    await w.db.query(
+      `INSERT INTO public.analytics_factadsdaily (workspace_id, brand_id, fact_date, spend_minor, impressions, clicks, attributed_conversions, attributed_revenue_minor)
+       VALUES ($1,$2,current_date - 20, 5000, 100, 1, 0, 0)`, [A.workspace_id, A.brand_id]);
+
+    const r = await hit(api, `${brandA}/pnl/?days=30`, { cookies: cA2 });
+    assertEquals(r.status, 200);
+    const l = r.body.lines;
+    // Seeded orders in window: net 10000 + 20000, each with 1000 discount, 500 tax, 200 shipping; cancelled excluded.
+    assertEquals(l.gross_sales_minor, 32000); // net + discounts (Shopify total_price is already after discounts)
+    assertEquals(l.discounts_minor, 2000);
+    assertEquals(l.refunds_minor, 0);
+    assertEquals(l.net_revenue_minor, 30000);
+    assertEquals(l.gross_sales_minor - l.discounts_minor - l.refunds_minor, l.net_revenue_minor); // waterfall adds up
+    assertEquals(l.cogs_minor, 10500); // 35%
+    assertEquals(l.gross_margin_minor, 19500);
+    assertEquals(l.ad_spend_minor, 15000); // both facts inside 30 days
+    assertEquals(l.gateway_charges_minor, 600); // 2%
+    assertEquals(l.shipping_costs_minor, 15000); // 2 orders x Rs 75
+    assertEquals(l.cm1_minor, 19500 - 15000 - 600 - 15000);
+    assertEquals(l.fixed_overhead_minor, null);
+    assertEquals(l.ebitda_minor, null);
+    assertEquals(r.body.pct_of_net.gross_sales, 106.7); // computed, not the old hard-coded 108.1%
+    assertEquals(r.body.pct_of_net.cm1, -37); // -11100 / 30000
+    assertEquals(r.body.memo, { tax_collected_minor: 1000, shipping_charged_minor: 400, partially_refunded_order_count: 0 });
+    assertEquals(r.body.sources.ad_spend, "meta_ads");
+
+    const r7 = await hit(api, `${brandA}/pnl/?days=7`, { cookies: cA2 });
+    assertEquals(r7.body.lines.ad_spend_minor, 10000); // the 20-day-old spend is outside 7 days
+
+    // Brand with no Meta connection and no orders: no ad spend line, no division by zero.
+    const empty = await hit(api, `/api/w/${B.slug}/b/${B.brand_id}/pnl`, { cookies: cB });
+    assertEquals(empty.status, 200);
+    assertEquals(empty.body.lines.ad_spend_minor, null);
+    assertEquals(empty.body.sources.ad_spend, "not_connected");
+    assertEquals(empty.body.lines.cm1_minor, 0);
+    assertEquals(empty.body.pct_of_net.cm1, null);
+
+    assertEquals((await hit(api, `${brandA}/pnl`)).status, 401);
+    assertEquals((await hit(api, `${brandA}/pnl`, { cookies: cB })).status, 404);
+  });
+
+  await t.step("refunded and voided orders are not revenue (shopify/stats, pnl, ROAS); real period comparison", async () => {
+    await w.db.query(
+      `INSERT INTO public.commerce_order (workspace_id, brand_id, provider, provider_id, order_number, gross_amount, discount_amount, tax_amount, shipping_amount, net_sales, financial_status, fulfillment_status, source_created_at)
+       VALUES ($1,$2,'shopify','#1004','#1004',5700,1000,500,200,4000,'refunded','unfulfilled',$3),
+              ($1,$2,'shopify','#1005','#1005',9700,0,500,200,9000,'voided','unfulfilled',$3),
+              ($1,$2,'shopify','#1006','#1006',7700,0,500,200,7000,'partially_refunded','fulfilled',$3),
+              ($1,$2,'shopify','#0998','#0998',51700,1000,500,200,50000,'paid','fulfilled',$4)`,
+      [A.workspace_id, A.brand_id, daysAgo(1), daysAgo(45)]);
+    const s = await hit(api, `${brandA}/shopify/stats/?days=30`, { cookies: cA2 });
+    const m = s.body.metrics;
+    assertEquals(m.refunds_minor, 4000);
+    assertEquals(m.net_sales_minor, 37000); // 10000 + 20000 + 7000 (partial refund amount unknown)
+    assertEquals(m.gross_sales_minor - m.discount_total_minor - m.refunds_minor, m.net_sales_minor);
+    assertEquals(m.order_count, 3);
+    assertEquals(m.refunded_order_count, 1);
+    assertEquals(m.partially_refunded_order_count, 1);
+    // The previous 30-day window (30-60 days ago) holds #0998 (net 50000).
+    assertEquals(s.body.previous.net_sales_minor, 50000);
+    assertEquals(s.body.change_pct.net_sales, -26); // (37000 - 50000) / 50000
+    const p = await hit(api, `${brandA}/pnl/?days=30`, { cookies: cA2 });
+    assertEquals(p.body.lines.refunds_minor, 4000);
+    assertEquals(p.body.lines.net_revenue_minor, 37000);
+    assertEquals(p.body.memo.partially_refunded_order_count, 1);
+    // A 7-day window has no previous-period orders -> no invented trend.
+    const s7 = await hit(api, `${brandA}/shopify/stats/?days=7`, { cookies: cA2 });
+    assertEquals(s7.body.change_pct.net_sales, null);
+  });
+
   await t.step("logistics: real (empty) shipment data; NDR action -> 501 instead of fake success", async () => {
     const s = await hit(api, `${brandA}/logistics/summary`, { cookies: cA2 });
     assertEquals(s.body.total_shipments, 0);
