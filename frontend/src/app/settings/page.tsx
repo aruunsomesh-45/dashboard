@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Settings,
   ShieldCheck,
@@ -392,10 +393,10 @@ export default function SettingsPage() {
         <div className="p-5 rounded-xl bg-ivory-50 border border-ivory-300 space-y-2 text-xs">
           <div className="flex items-center space-x-2 font-bold text-charcoal-900">
             <Lock className="w-4 h-4 text-forest-700" />
-            <span>Fernet TOTP Encryption &amp; RLS Guarantee</span>
+            <span>How your account and data are protected</span>
           </div>
           <p className="text-[11px] text-charcoal-600 leading-relaxed">
-            TOTP authenticator secrets and provider credentials are encrypted at rest using AES-128-CBC + HMAC-SHA256 envelope keys derived deterministically from application secrets. PostgreSQL Row-Level Security (RLS) ensures tenant isolation under <code>{currentWorkspace?.slug}</code>.
+            Sign-in and two-factor authentication (TOTP) are handled by Supabase Auth. Integration credentials are encrypted with AES-256-GCM before they are stored. Every request checks your workspace membership, and PostgreSQL Row-Level Security isolates the data of <code>{currentWorkspace?.slug}</code> from other workspaces.
           </p>
         </div>
       </div>
@@ -428,11 +429,21 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="flex justify-center p-4 bg-ivory-50 rounded-xl border border-ivory-200">
-                  <img
-                    src={setupData?.qr_code_base64 || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' fill='%23fbf9f5'/></svg>"}
-                    alt="2FA QR Code"
-                    className="w-44 h-44 rounded-lg bg-white p-2 shadow-sm"
-                  />
+                  {setupData?.provisioning_uri ? (
+                    // Drawn locally from the otpauth:// URI: Supabase's qr_code is an unencoded SVG data URI
+                    // that browsers can fail to load, which left a broken image.
+                    <QRCodeSVG
+                      value={setupData.provisioning_uri}
+                      size={176}
+                      marginSize={2}
+                      title="2FA QR Code"
+                      className="rounded-lg bg-white shadow-sm"
+                    />
+                  ) : (
+                    <div className="w-44 h-44 rounded-lg bg-white shadow-sm flex items-center justify-center text-[11px] text-charcoal-400">
+                      Generating QR code…
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -441,11 +452,12 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       readOnly
-                      value={setupData?.secret || "JBSWY3DPEHPK3PXP"}
+                      value={setupData?.secret || ""}
+                      placeholder="Generating key…"
                       className="w-full font-mono text-xs bg-ivory-50 border border-ivory-300 rounded px-2.5 py-1.5 text-charcoal-800 select-all"
                     />
                     <button
-                      onClick={() => copyToClipboard(setupData?.secret || "JBSWY3DPEHPK3PXP", "totp-secret")}
+                      onClick={() => setupData?.secret && copyToClipboard(setupData.secret, "totp-secret")}
                       className="px-2.5 py-1.5 text-xs bg-forest-900 text-ivory-100 rounded hover:bg-forest-800 transition-colors flex-shrink-0"
                     >
                       {copied === "totp-secret" ? "Copied" : "Copy"}

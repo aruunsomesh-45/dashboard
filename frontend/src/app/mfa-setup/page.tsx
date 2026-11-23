@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
+import { QRCodeSVG } from "qrcode.react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -132,14 +132,14 @@ export default function MFASetupPage() {
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                   <div className="flex flex-col items-center p-4 bg-ivory-50 rounded-xl border border-ivory-300">
-                    {setupData?.qr_code_base64 && (
-                      <Image
-                        src={setupData.qr_code_base64}
-                        alt="TOTP QR Code"
-                        width={180}
-                        height={180}
-                        unoptimized
-                        className="rounded-lg shadow-sm"
+                    {setupData?.provisioning_uri && (
+                      // Drawn locally from the otpauth:// URI (Supabase's SVG data URI can fail to load).
+                      <QRCodeSVG
+                        value={setupData.provisioning_uri}
+                        size={180}
+                        marginSize={2}
+                        title="TOTP QR Code"
+                        className="rounded-lg bg-white shadow-sm"
                       />
                     )}
                     <span className="text-[11px] text-charcoal-500 mt-2">
@@ -152,9 +152,9 @@ export default function MFASetupPage() {
                       Can&apos;t scan? Enter manually:
                     </h4>
                     <div className="p-2.5 rounded-lg bg-ivory-200 border border-ivory-300 font-mono text-xs text-charcoal-800 break-all select-all flex items-center justify-between">
-                      <span>{setupData?.secret || "JBSWY3DPEHPK3PXP"}</span>
+                      <span>{setupData?.secret || "—"}</span>
                       <button
-                        onClick={() => navigator.clipboard.writeText(setupData?.secret || "JBSWY3DPEHPK3PXP")}
+                        onClick={() => setupData?.secret && navigator.clipboard.writeText(setupData.secret)}
                         className="p-1 hover:text-terracotta-500"
                         title="Copy Key"
                       >
