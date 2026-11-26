@@ -22,8 +22,17 @@ verify_jwt = true
 [functions.instagram-sync]
 verify_jwt = true
 
+[functions.delhivery-sync]
+verify_jwt = true
+
 [functions.webhook-shopify]
 verify_jwt = false
 
 [functions.webhook-razorpay]
+verify_jwt = false
+
+[functions.reprocess-raw]
+verify_jwt = true
+
+[functions.track]
 verify_jwt = false

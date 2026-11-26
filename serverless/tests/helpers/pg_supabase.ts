@@ -82,6 +82,11 @@ function param(v: unknown): unknown {
   if (typeof v === "string" && /^\\x(?:[0-9a-f]{2})+$/i.test(v)) {
     return Uint8Array.from(v.slice(2).match(/../g)!, (h) => parseInt(h, 16));
   }
+  // PostgREST turns a JSON array into a Postgres array for array columns (e.g. text[]).
+  // Top-level arrays of plain values are only ever written to array columns in this codebase.
+  if (Array.isArray(v) && v.every((x) => x === null || ["string", "number", "boolean"].includes(typeof x))) {
+    return `{${v.map((x) => (x === null ? "NULL" : `"${String(x).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`)).join(",")}}`;
+  }
   if (typeof v === "object") return JSON.stringify(v);
   return v;
 }
@@ -308,6 +313,23 @@ export interface FakeAuthDirectory {
 export function pgAdminClient(db: PGlite): any {
   return {
     from: (t: string) => new Builder(db, { kind: "admin" }, t),
+    /** PostgREST /rpc/<fn> as service_role: set-returning functions yield an array of rows, others the scalar. */
+    rpc: async (fn: string, args: Record<string, unknown> = {}) => {
+      if (!/^[a-z_][a-z0-9_]*$/i.test(fn)) throw new Error("bad rpc name");
+      const keys = Object.keys(args);
+      const call = `public.${q(fn)}(${keys.map((k, i) => `${q(k)} => $${i + 1}`).join(", ")})`;
+      try {
+        const { rows: meta } = await db.query<{ retset: boolean }>(
+          "select bool_or(proretset) as retset from pg_proc where proname = $1 and pronamespace = 'public'::regnamespace",
+          [fn],
+        );
+        const params = keys.map((k) => param(args[k]));
+        if (meta[0]?.retset) return { data: (await db.query(`SELECT * FROM ${call}`, params)).rows, error: null };
+        return { data: (await db.query<{ result: unknown }>(`SELECT ${call} AS result`, params)).rows[0]?.result ?? null, error: null };
+      } catch (e) {
+        return { data: null, error: asPgError(e) };
+      }
+    },
     auth: { getUser: () => Promise.resolve({ data: { user: null }, error: { message: "admin client has no user" } }) },
   };
 }

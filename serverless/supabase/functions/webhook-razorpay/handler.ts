@@ -1,8 +1,7 @@
 import { handleCors } from "../_shared/cors.ts";
 import { handleWebhook } from "../_shared/webhooks.ts";
 import { verifyRazorpaySignature } from "../_shared/signatures.ts";
-import { upsertCanonical } from "../_shared/integrations.ts";
-import { mapRazorpayPayment } from "../_shared/mappers.ts";
+import { processRazorpayPayment, processRazorpayRefund } from "../_shared/pipeline.ts";
 import type { Deps } from "../_shared/deps.ts";
 
 export function createHandler(deps: Deps) {
@@ -20,10 +19,17 @@ export function createHandler(deps: Deps) {
       topic: (_r, p) => String(p?.event || "unknown"),
       storedHeaders: (r) => ({ "x-razorpay-event-id": r.headers.get("x-razorpay-event-id") }),
       process: async (admin, ctx, topic, payload) => {
-        const entity = payload?.payload?.payment?.entity;
-        if (!entity) return; // e.g. refund.* / settlement.* — logged, not projected
+        const payment = payload?.payload?.payment?.entity;
+        const refund = payload?.payload?.refund?.entity;
+        if (topic.startsWith("refund.") && refund) {
+          // refund events also carry the payment, whose amount_refunded/refund_status changed
+          if (payment) await processRazorpayPayment(admin, ctx, payment, { source: "webhook" });
+          await processRazorpayRefund(admin, ctx, refund, { source: "webhook" });
+          return;
+        }
+        if (!payment) return; // e.g. settlement.* — logged, not projected
         if (!topic.startsWith("payment.") && topic !== "order.paid") return;
-        await upsertCanonical(admin, "commerce_paymentattempt", mapRazorpayPayment(entity, ctx));
+        await processRazorpayPayment(admin, ctx, payment, { source: "webhook" });
       },
     });
   };

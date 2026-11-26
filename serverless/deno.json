@@ -8,6 +8,7 @@
     "smoke": "deno run -A tests/smoke/smoke.ts",
     "report": "deno test -A tests/unit tests/db tests/live --junit-path=tests/results/junit.xml ; deno run -A tests/smoke/smoke.ts ; deno run -A tests/results/summarize.ts",
     "gateway": "deno run -A local-gateway.ts",
-    "test:web": "deno test -A --no-check --config tests/web/deno.json tests/web"
+    "test:web": "deno test -A --no-check --config tests/web/deno.json tests/web",
+    "test:perf": "deno test -A tests/perf"
   }
 }

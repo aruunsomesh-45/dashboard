@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 import { HttpError } from "./http.ts";
+import { isCronRequest } from "./cron.ts";
 import type { Deps } from "./deps.ts";
 
 export interface AuthenticatedUser {
@@ -33,6 +34,37 @@ export async function requireAuth(
     throw new HttpError(401, "Two-factor verification required");
   }
   return { user: { id: user.id, email: user.email || "" }, client };
+}
+
+/** Who is invoking a sync function: Supabase Cron (shared secret) or a signed-in dashboard user. */
+export type SyncCaller =
+  | { kind: "cron" }
+  | { kind: "user"; user: AuthenticatedUser; client: SupabaseClient };
+
+/**
+ * Authenticates a sync call. Runs before the body is read, so bad credentials are a 401 before any 400.
+ * A wrong x-cron-secret is a 401 (it never falls through to user auth).
+ */
+export async function requireSyncCaller(req: Request, deps: Pick<Deps, "userClient">): Promise<SyncCaller> {
+  if (isCronRequest(req)) return { kind: "cron" };
+  const { user, client } = await requireAuth(req, deps);
+  return { kind: "user", user, client };
+}
+
+/**
+ * Users must be workspace members with the module enabled. Cron calls are pre-filtered in SQL by
+ * public.enqueue_scheduled_syncs() (connected integrations, module not disabled for the workspace) and
+ * stay bound to the (workspace_id, brand_id) pair because loadIntegration() matches both columns.
+ */
+export async function authorizeSyncScope(
+  caller: SyncCaller,
+  workspaceId: string,
+  brandId: string,
+  moduleKey: string,
+): Promise<void> {
+  if (caller.kind === "cron") return;
+  await requireWorkspaceAccess(caller.client, caller.user.id, workspaceId, brandId);
+  await requireModuleAccess(caller.client, caller.user.id, workspaceId, moduleKey);
 }
 
 export function requiresAal2(user: { factors?: Array<{ factor_type?: string; status?: string }> | null }): boolean {

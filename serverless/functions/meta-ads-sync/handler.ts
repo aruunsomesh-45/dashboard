@@ -1,6 +1,6 @@
 import { successResponse } from "../_shared/response.ts";
 import { logger } from "../_shared/logger.ts";
-import { requireAuth, requireWorkspaceAccess, requireModuleAccess } from "../_shared/auth.ts";
+import { authorizeSyncScope, requireSyncCaller } from "../_shared/auth.ts";
 import { clampInt, HttpError, readJsonObject, requireUuid } from "../_shared/http.ts";
 import { fetchWithRetry, safeJson } from "../_shared/upstream.ts";
 import { wrapHandler } from "../_shared/handler.ts";
@@ -13,15 +13,14 @@ const GRAPH_HOST = "graph.facebook.com";
 
 export function createHandler(deps: Deps) {
   return wrapHandler("meta-ads-sync", async (req) => {
-    const { user, client } = await requireAuth(req, deps);
+    const caller = await requireSyncCaller(req, deps);
     const body = await readJsonObject(req);
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
     const days = clampInt(body.days, 30, 1, 365);
     const maxPages = clampInt(body.max_pages, 10, 1, 50);
 
-    await requireWorkspaceAccess(client, user.id, workspaceId, brandId);
-    await requireModuleAccess(client, user.id, workspaceId, "meta_ads");
+    await authorizeSyncScope(caller, workspaceId, brandId, "meta_ads");
 
     const admin = deps.adminClient();
     const integ = await loadIntegration(admin, workspaceId, brandId, "meta_ads");
@@ -51,7 +50,7 @@ export function createHandler(deps: Deps) {
     if (exErr) throw new Error(`analytics_factadsdaily read failed: ${exErr.message}`);
     const existing = new Set((existingRows ?? []).map((r: { fact_date: string }) => String(r.fact_date).slice(0, 10)));
 
-    const runId = await startSyncRun(admin, integ, "ads_insights");
+    const runId = await startSyncRun(admin, integ, "ads_insights", caller.kind === "cron" ? "cron" : "manual");
     const counts = newCounts();
     let pages = 0;
 

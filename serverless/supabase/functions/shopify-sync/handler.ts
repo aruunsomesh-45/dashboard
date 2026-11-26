@@ -1,39 +1,37 @@
 import { successResponse } from "../_shared/response.ts";
 import { logger } from "../_shared/logger.ts";
-import { requireAuth, requireWorkspaceAccess, requireModuleAccess } from "../_shared/auth.ts";
+import { authorizeSyncScope, requireSyncCaller } from "../_shared/auth.ts";
 import { clampInt, HttpError, readJsonObject, requireUuid } from "../_shared/http.ts";
 import { fetchWithRetry, safeJson } from "../_shared/upstream.ts";
 import { wrapHandler } from "../_shared/handler.ts";
 import type { Deps } from "../_shared/deps.ts";
 import {
+  CURSOR_OVERLAP_MS,
   finishSyncRun,
+  loadCursor,
   loadIntegration,
   newCounts,
+  saveCursor,
   setIntegrationStatus,
   startSyncRun,
-  upsertCanonical,
 } from "../_shared/integrations.ts";
-import {
-  extractShopifyNextPageUrl,
-  mapShopifyCustomer,
-  mapShopifyLineItems,
-  mapShopifyOrder,
-  normalizeShopDomain,
-} from "../_shared/mappers.ts";
+import { extractShopifyNextPageUrl, normalizeShopDomain } from "../_shared/mappers.ts";
+import { processShopifyOrder } from "../_shared/pipeline.ts";
 
 export const SHOPIFY_API_VERSION = "2024-10";
 
 export function createHandler(deps: Deps) {
   return wrapHandler("shopify-sync", async (req) => {
-    const { user, client } = await requireAuth(req, deps);
+    const caller = await requireSyncCaller(req, deps);
     const body = await readJsonObject(req);
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
+    // Explicit `days` = historical backfill window; otherwise continue from the stored checkpoint.
+    const explicitDays = body.days !== undefined && body.days !== null && body.days !== "";
     const days = clampInt(body.days, 90, 1, 365);
     const maxPages = clampInt(body.max_pages, 5, 1, 50);
 
-    await requireWorkspaceAccess(client, user.id, workspaceId, brandId);
-    await requireModuleAccess(client, user.id, workspaceId, "shopify");
+    await authorizeSyncScope(caller, workspaceId, brandId, "shopify");
 
     const admin = deps.adminClient();
     const integ = await loadIntegration(admin, workspaceId, brandId, "shopify");
@@ -45,12 +43,23 @@ export function createHandler(deps: Deps) {
     }
 
     const ctx = { workspace_id: workspaceId, brand_id: brandId };
-    const runId = await startSyncRun(admin, integ, "orders");
+    const runId = await startSyncRun(admin, integ, "orders", caller.kind === "cron" ? "cron" : "manual");
     const counts = newCounts();
-    const since = new Date(Date.now() - days * 86_400_000).toISOString();
+    const cursor = explicitDays ? null : await loadCursor(admin, integ, "orders");
+    const mode = cursor ? "incremental" : explicitDays ? "backfill" : "initial";
+    const since = cursor
+      ? new Date(Date.parse(cursor) - CURSOR_OVERLAP_MS).toISOString()
+      : new Date(Date.now() - days * 86_400_000).toISOString();
+    // updated_at (not created_at) so edits, refunds and cancellations of older orders are picked up;
+    // ascending order lets the checkpoint advance safely page by page.
     let nextUrl: string | null =
-      `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&limit=250&created_at_min=${encodeURIComponent(since)}`;
+      `https://${shopDomain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&limit=250&order=updated_at%20asc&updated_at_min=${encodeURIComponent(since)}`;
     let pages = 0;
+    // The checkpoint only moves through the unbroken prefix of saved orders: a failed order is
+    // re-read next run (it is also kept as a failed raw payload for re-processing).
+    let checkpoint: string | null = null;
+    let prefixIntact = true;
+    const source = mode === "backfill" ? "backfill" : "sync";
 
     try {
       while (nextUrl && pages < maxPages) {
@@ -80,24 +89,13 @@ export function createHandler(deps: Deps) {
         for (const order of json.orders) {
           counts.processed++;
           try {
-            let customerId: string | null = null;
-            const customerRow = mapShopifyCustomer(order.customer, ctx);
-            if (customerRow) customerId = (await upsertCanonical(admin, "commerce_customer", customerRow)).id;
-
-            const { id: orderId, created } = await upsertCanonical(admin, "commerce_order", mapShopifyOrder(order, ctx, customerId));
+            const { created } = await processShopifyOrder(admin, ctx, order, { source });
             if (created) counts.created++;
             else counts.updated++;
-
-            // commerce_orderline has no natural key: replace the order's lines atomically-enough
-            // (delete + insert) so re-syncs never duplicate them.
-            const lines = mapShopifyLineItems(order, orderId);
-            const { error: delErr } = await admin.from("commerce_orderline").delete().eq("order_id", orderId);
-            if (delErr) throw new Error(`orderline delete failed: ${delErr.message}`);
-            if (lines.length) {
-              const { error: lineErr } = await admin.from("commerce_orderline").insert(lines);
-              if (lineErr) throw new Error(`orderline insert failed: ${lineErr.message}`);
-            }
+            const updated = Date.parse(String(order?.updated_at ?? ""));
+            if (prefixIntact && Number.isFinite(updated)) checkpoint = new Date(updated).toISOString();
           } catch (e) {
+            prefixIntact = false;
             counts.failed++;
             logger.warn("Shopify order not persisted", { provider_id: String(order?.id ?? ""), error: (e as Error).message });
           }
@@ -106,9 +104,11 @@ export function createHandler(deps: Deps) {
         nextUrl = extractShopifyNextPageUrl(res.headers.get("Link"), shopDomain);
       }
     } catch (e) {
+      if (checkpoint) await saveCursor(admin, integ, "orders", checkpoint);
       await finishSyncRun(admin, runId, "failed", counts, (e as Error).message);
       throw e;
     }
+    const cursorAdvanced = checkpoint ? await saveCursor(admin, integ, "orders", checkpoint) : false;
 
     const ok = counts.processed - counts.failed;
     const status = counts.failed === 0 ? "success" : ok > 0 ? "partial" : "failed";
@@ -134,6 +134,9 @@ export function createHandler(deps: Deps) {
       records_failed: counts.failed,
       pages_fetched: pages,
       has_more: Boolean(nextUrl),
+      mode,
+      window_start: since,
+      cursor: cursorAdvanced ? checkpoint : cursor,
       last_synced_at: new Date().toISOString(),
     });
   });

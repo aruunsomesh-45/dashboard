@@ -1,26 +1,35 @@
 import { successResponse } from "../_shared/response.ts";
 import { logger } from "../_shared/logger.ts";
-import { requireAuth, requireWorkspaceAccess, requireModuleAccess } from "../_shared/auth.ts";
+import { authorizeSyncScope, requireSyncCaller } from "../_shared/auth.ts";
 import { clampInt, HttpError, readJsonObject, requireUuid } from "../_shared/http.ts";
 import { fetchWithRetry, safeJson } from "../_shared/upstream.ts";
 import { wrapHandler } from "../_shared/handler.ts";
 import type { Deps } from "../_shared/deps.ts";
-import { finishSyncRun, loadIntegration, newCounts, setIntegrationStatus, startSyncRun, upsertCanonical } from "../_shared/integrations.ts";
-import { mapRazorpayPayment } from "../_shared/mappers.ts";
+import {
+  CURSOR_OVERLAP_MS,
+  finishSyncRun,
+  loadCursor,
+  loadIntegration,
+  newCounts,
+  saveCursor,
+  setIntegrationStatus,
+  startSyncRun,
+} from "../_shared/integrations.ts";
+import { processRazorpayPayment } from "../_shared/pipeline.ts";
 
 const PAGE_SIZE = 100; // Razorpay maximum for /v1/payments
 
 export function createHandler(deps: Deps) {
   return wrapHandler("razorpay-sync", async (req) => {
-    const { user, client } = await requireAuth(req, deps);
+    const caller = await requireSyncCaller(req, deps);
     const body = await readJsonObject(req);
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
+    const explicitDays = body.days !== undefined && body.days !== null && body.days !== "";
     const days = clampInt(body.days, 30, 1, 365);
     const maxPages = clampInt(body.max_pages, 5, 1, 50);
 
-    await requireWorkspaceAccess(client, user.id, workspaceId, brandId);
-    await requireModuleAccess(client, user.id, workspaceId, "razorpay");
+    await authorizeSyncScope(caller, workspaceId, brandId, "razorpay");
 
     const admin = deps.adminClient();
     const integ = await loadIntegration(admin, workspaceId, brandId, "razorpay");
@@ -30,8 +39,13 @@ export function createHandler(deps: Deps) {
 
     const ctx = { workspace_id: workspaceId, brand_id: brandId };
     const auth = `Basic ${btoa(`${keyId}:${keySecret}`)}`;
-    const from = Math.floor((Date.now() - days * 86_400_000) / 1000);
-    const runId = await startSyncRun(admin, integ, "payments");
+    const runStartedAt = new Date().toISOString();
+    const cursor = explicitDays ? null : await loadCursor(admin, integ, "payments");
+    const mode = cursor ? "incremental" : explicitDays ? "backfill" : "initial";
+    const fromMs = cursor ? Date.parse(cursor) - CURSOR_OVERLAP_MS : Date.now() - days * 86_400_000;
+    const from = Math.floor(fromMs / 1000);
+    const source = mode === "backfill" ? "backfill" : "sync";
+    const runId = await startSyncRun(admin, integ, "payments", caller.kind === "cron" ? "cron" : "manual");
     const counts = newCounts();
     let pages = 0;
     let hasMore = true;
@@ -53,7 +67,7 @@ export function createHandler(deps: Deps) {
         for (const payment of json.items) {
           counts.processed++;
           try {
-            const { created } = await upsertCanonical(admin, "commerce_paymentattempt", mapRazorpayPayment(payment, ctx));
+            const { created } = await processRazorpayPayment(admin, ctx, payment, { source });
             if (created) counts.created++;
             else counts.updated++;
           } catch (e) {
@@ -67,6 +81,10 @@ export function createHandler(deps: Deps) {
       await finishSyncRun(admin, runId, "failed", counts, (e as Error).message);
       throw e;
     }
+
+    // Razorpay lists newest first by creation time, so the checkpoint (this run's start) may only
+    // advance after a complete, failure-free pass over the window.
+    const cursorAdvanced = !hasMore && counts.failed === 0 ? await saveCursor(admin, integ, "payments", runStartedAt) : false;
 
     const ok = counts.processed - counts.failed;
     const status = counts.failed === 0 ? "success" : ok > 0 ? "partial" : "failed";
@@ -84,6 +102,9 @@ export function createHandler(deps: Deps) {
       records_failed: counts.failed,
       pages_fetched: pages,
       has_more: hasMore,
+      mode,
+      window_start: new Date(from * 1000).toISOString(),
+      cursor: cursorAdvanced ? runStartedAt : cursor,
       last_synced_at: new Date().toISOString(),
     });
   });

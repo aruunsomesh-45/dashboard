@@ -1,5 +1,5 @@
 import { successResponse } from "../_shared/response.ts";
-import { requireAuth, requireWorkspaceAccess, requireModuleAccess } from "../_shared/auth.ts";
+import { authorizeSyncScope, requireSyncCaller } from "../_shared/auth.ts";
 import { HttpError, readJsonObject, requireUuid } from "../_shared/http.ts";
 import { fetchWithRetry, safeJson } from "../_shared/upstream.ts";
 import { wrapHandler } from "../_shared/handler.ts";
@@ -24,12 +24,11 @@ export const META_GRAPH_VERSION = "v21.0";
  */
 export function createHandler(deps: Deps) {
   return wrapHandler("instagram-sync", async (req) => {
-    const { user, client } = await requireAuth(req, deps);
+    const caller = await requireSyncCaller(req, deps);
     const body = await readJsonObject(req);
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
-    await requireWorkspaceAccess(client, user.id, workspaceId, brandId);
-    await requireModuleAccess(client, user.id, workspaceId, "instagram");
+    await authorizeSyncScope(caller, workspaceId, brandId, "instagram");
 
     const admin = deps.adminClient();
     const integ = await loadIntegration(admin, workspaceId, brandId, "instagram");

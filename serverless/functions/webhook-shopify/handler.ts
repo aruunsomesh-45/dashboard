@@ -1,8 +1,7 @@
 import { handleCors } from "../_shared/cors.ts";
 import { handleWebhook } from "../_shared/webhooks.ts";
 import { verifyShopifyHmac } from "../_shared/signatures.ts";
-import { upsertCanonical } from "../_shared/integrations.ts";
-import { mapShopifyCustomer, mapShopifyLineItems, mapShopifyOrder } from "../_shared/mappers.ts";
+import { processShopifyOrder, processShopifyRefund } from "../_shared/pipeline.ts";
 import type { Deps } from "../_shared/deps.ts";
 
 /** Order topics that carry a full order payload (orders/delete only carries an id). */
@@ -37,18 +36,12 @@ export function createHandler(deps: Deps) {
         "x-shopify-api-version": r.headers.get("x-shopify-api-version"),
       }),
       process: async (admin, ctx, topic, payload) => {
-        if (!ORDER_UPSERT_TOPICS.has(topic)) return; // logged, not projected
-        let customerId: string | null = null;
-        const customer = mapShopifyCustomer(payload.customer, ctx);
-        if (customer) customerId = (await upsertCanonical(admin, "commerce_customer", customer)).id;
-        const { id: orderId } = await upsertCanonical(admin, "commerce_order", mapShopifyOrder(payload, ctx, customerId));
-        const lines = mapShopifyLineItems(payload, orderId);
-        const { error: delErr } = await admin.from("commerce_orderline").delete().eq("order_id", orderId);
-        if (delErr) throw new Error(`orderline delete failed: ${delErr.message}`);
-        if (lines.length) {
-          const { error } = await admin.from("commerce_orderline").insert(lines);
-          if (error) throw new Error(`orderline insert failed: ${error.message}`);
+        if (ORDER_UPSERT_TOPICS.has(topic)) {
+          await processShopifyOrder(admin, ctx, payload, { source: "webhook" });
+        } else if (topic === "refunds/create") {
+          await processShopifyRefund(admin, ctx, payload, { source: "webhook" });
         }
+        // other topics: kept in the webhook event log, not projected
       },
     });
   };
