@@ -71,7 +71,9 @@ export async function runSmoke(): Promise<{ checks: Check[]; startedAt: string; 
 
   const checks: Check[] = [];
   const add = (c: Check) => checks.push(c);
-  const fnBase = Deno.env.get("FUNCTIONS_URL") || defaults.NEXT_PUBLIC_FUNCTIONS_URL || `${url}/functions/v1`;
+  // Derive the functions URL from the Supabase project URL. A .env.local value can point at a LAN address
+  // (local `supabase start`), which made every function check time out against production.
+  const fnBase = Deno.env.get("FUNCTIONS_URL") || `${url}/functions/v1`;
   const fnUrl = (n: string) => `${fnBase.replace(/\/+$/, "")}/${n}`;
 
   // 1. Platform reachability

@@ -22,6 +22,17 @@ export function getAdminClient(): SupabaseClient {
   return adminClientInstance;
 }
 
+/**
+ * Base URL of the Supabase Edge Functions, without a trailing slash. Env values are trimmed: a stray space
+ * pasted into the Vercel dashboard once turned every call into `/functions/v1%20/<name>` (a silent 404).
+ */
+export function functionsBaseUrl(): string {
+  const explicit = (process.env.NEXT_PUBLIC_FUNCTIONS_URL || "").trim();
+  const project = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  const base = explicit || (project ? `${project.replace(/\/+$/, "")}/functions/v1` : "");
+  return base.replace(/\/+$/, "");
+}
+
 export function getUserClient(token: string): SupabaseClient {
   return createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },

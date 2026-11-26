@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorJson, requireSession, RouteError, withSessionCookies } from "@/lib/serverAuth";
+import { functionsBaseUrl } from "@/lib/supabaseServer";
 
 /**
  * Browser -> Supabase Edge Function proxy. Forwards the caller's session JWT from the HTTP-only cookie
@@ -9,15 +10,14 @@ import { errorJson, requireSession, RouteError, withSessionCookies } from "@/lib
  */
 export const dynamic = "force-dynamic";
 
-const ALLOWED = new Set(["test-connection", "shopify-sync", "razorpay-sync", "meta-ads-sync", "instagram-sync"]);
+const ALLOWED = new Set(["test-connection", "shopify-sync", "razorpay-sync", "meta-ads-sync", "instagram-sync", "delhivery-sync"]);
 
 export async function POST(req: NextRequest, { params }: { params: { name: string } }) {
   try {
     if (!ALLOWED.has(params.name)) throw new RouteError(404, "Not found");
     const session = await requireSession(req);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const functionsUrl = process.env.NEXT_PUBLIC_FUNCTIONS_URL || (supabaseUrl ? `${supabaseUrl}/functions/v1` : "");
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+    const functionsUrl = functionsBaseUrl();
+    const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
     if (!functionsUrl || !anonKey) throw new RouteError(503, "Serverless functions URL is not configured");
 
     const payload = await req.text();

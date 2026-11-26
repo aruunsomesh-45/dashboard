@@ -8,7 +8,8 @@ import { WorkspaceMember, UserRole } from "@/types/auth";
 import { UserPlus, Copy, Check, Clock } from "lucide-react";
 
 export default function TeamPage() {
-  const { currentWorkspace } = useAuth();
+  const { currentWorkspace, user, refreshAuth } = useAuth();
+  const [busyMember, setBusyMember] = useState<string | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -21,6 +22,62 @@ export default function TeamPage() {
 
   const isOwnerOrAdmin =
     currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
+
+  // Mirrors the server rules in lib/workspaceRoutes.ts (the server is the one that enforces them).
+  const myRole = currentWorkspace?.role;
+  const isSelf = (m: WorkspaceMember) => m.user.id === user?.id;
+  const roleOptions = (m: WorkspaceMember): UserRole[] => {
+    if (myRole === "owner") return ["owner", "admin", "analyst", "viewer"];
+    if (myRole === "admin" && !isSelf(m) && (m.role === "analyst" || m.role === "viewer")) return ["analyst", "viewer"];
+    return [];
+  };
+  const canRemove = (m: WorkspaceMember) => {
+    if (isSelf(m)) return true; // anyone may leave
+    if (myRole === "owner") return true;
+    return myRole === "admin" && (m.role === "analyst" || m.role === "viewer");
+  };
+
+  const changeRole = async (m: WorkspaceMember, role: UserRole) => {
+    if (!currentWorkspace || role === m.role) return;
+    setBusyMember(m.user.id);
+    setError(null);
+    try {
+      await apiFetch(`/api/w/${currentWorkspace.slug}/members/${m.user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      await fetchMembers();
+    } catch (err: any) {
+      setError(err?.message || "Could not change the role.");
+    } finally {
+      setBusyMember(null);
+    }
+  };
+
+  const removeMember = async (m: WorkspaceMember) => {
+    if (!currentWorkspace) return;
+    const self = isSelf(m);
+    const question = self
+      ? `Leave ${currentWorkspace.name}? You will lose access to it.`
+      : `Remove ${m.user.email} from ${currentWorkspace.name}?`;
+    if (!window.confirm(question)) return;
+    setBusyMember(m.user.id);
+    setError(null);
+    try {
+      await apiFetch(`/api/w/${currentWorkspace.slug}/members/${m.user.id}`, { method: "DELETE" });
+      if (self) {
+        await refreshAuth();
+        window.location.href = "/dashboard";
+        return;
+      }
+      await fetchMembers();
+    } catch (err: any) {
+      setError(err?.message || "Could not remove the member.");
+    } finally {
+      setBusyMember(null);
+    }
+  };
 
   const fetchMembers = async () => {
     if (!currentWorkspace) return;
@@ -115,6 +172,7 @@ export default function TeamPage() {
                   <th className="py-3 px-6 font-semibold">Role</th>
                   <th className="py-3 px-6 font-semibold">MFA Status</th>
                   <th className="py-3 px-6 font-semibold">Joined Date</th>
+                  <th className="py-3 px-6 font-semibold">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ivory-200">
@@ -155,6 +213,35 @@ export default function TeamPage() {
                     </td>
                     <td className="py-3.5 px-6 text-charcoal-500 font-mono text-[11px]">
                       {new Date(m.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-3.5 px-6">
+                      <div className="flex items-center gap-2">
+                        {roleOptions(m).length > 0 && (
+                          <select
+                            aria-label={`Role for ${m.user.email}`}
+                            className="border border-ivory-300 rounded px-2 py-1 text-[11px] bg-white"
+                            value={m.role}
+                            disabled={busyMember === m.user.id}
+                            onChange={(e) => changeRole(m, e.target.value as UserRole)}
+                          >
+                            {roleOptions(m).map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {canRemove(m) && (
+                          <button
+                            type="button"
+                            disabled={busyMember === m.user.id}
+                            onClick={() => removeMember(m)}
+                            className="text-[11px] text-red-700 hover:underline disabled:opacity-50"
+                          >
+                            {isSelf(m) ? "Leave" : "Remove"}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -285,7 +285,10 @@ Deno.test({ ...opts, name: "Next.js API routes", fn: async (t) => {
     assertEquals(shop.status, "connected");
     assertEquals(shop.provider_display, "Shopify");
     assert(!("encrypted_credentials" in shop));
-    assertEquals((await hit(api, `${brandA}/integrations/`, { method: "POST", cookies: cA2, body: { provider: "delhivery", credentials: { a: "b" } } })).status, 400);
+    assertEquals((await hit(api, `${brandA}/integrations/`, { method: "POST", cookies: cA2, body: { provider: "unknown_courier", credentials: { a: "b" } } })).status, 400);
+    // Delhivery is a supported provider: the owner can save its token (stored encrypted, never returned).
+    const saved = await hit(api, `${brandA}/integrations/`, { method: "POST", cookies: cA2, body: { provider: "delhivery", account_identifier: "DLH_TEST", credentials: { api_token: "dlv_web_token" } } });
+    assertEquals(saved.status, 200, JSON.stringify(saved.body));
   });
 
   await t.step("integrations DELETE: viewer 403; owner disconnects and wipes credentials", async () => {

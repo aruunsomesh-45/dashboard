@@ -11,3 +11,11 @@ export function getAdminClient(): any {
 export function getUserClient(): never {
   throw new Error("harness: getUserClient is not used by the API routes");
 }
+
+// Same logic as the real helper (pure env read), so the routes reach harness.ts's in-process Edge Functions URL.
+export function functionsBaseUrl(): string {
+  const explicit = (Deno.env.get("NEXT_PUBLIC_FUNCTIONS_URL") || "").trim();
+  const project = (Deno.env.get("NEXT_PUBLIC_SUPABASE_URL") || "").trim();
+  const base = explicit || (project ? `${project.replace(/\/+$/, "")}/functions/v1` : "");
+  return base.replace(/\/+$/, "");
+}

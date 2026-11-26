@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getAdminClient } from "@/lib/supabaseServer";
+import { functionsBaseUrl, getAdminClient } from "@/lib/supabaseServer";
 import {
   ADMIN_ROLES,
   RouteError,
@@ -12,6 +12,8 @@ import {
   withSessionCookies,
 } from "@/lib/serverAuth";
 import { handleAccountRoute } from "@/lib/accountRoutes";
+import { handleAttributionRoute } from "@/lib/attributionRoutes";
+import { handleWorkspaceRoute } from "@/lib/workspaceRoutes";
 import { decryptCredentialsFromPgHex, encryptCredentialsToPgHex, isEncryptionConfigured } from "@/lib/credentialCrypto";
 
 /**
@@ -30,11 +32,11 @@ export const PUT = (req: NextRequest, { params }: Params) => handleRequest(req, 
 export const PATCH = (req: NextRequest, { params }: Params) => handleRequest(req, params?.path || [], "PATCH");
 export const DELETE = (req: NextRequest, { params }: Params) => handleRequest(req, params?.path || [], "DELETE");
 
-const PROVIDERS = new Set(["shopify", "razorpay", "shiprocket", "meta_ads", "instagram"]);
+const PROVIDERS = new Set(["shopify", "razorpay", "delhivery", "meta_ads", "instagram"]);
 const PROVIDER_DISPLAY: Record<string, string> = {
   shopify: "Shopify",
   razorpay: "Razorpay",
-  shiprocket: "Shiprocket",
+  delhivery: "Delhivery",
   meta_ads: "Meta Ads",
   instagram: "Instagram",
 };
@@ -43,6 +45,7 @@ const SYNC_FUNCTIONS: Record<string, string> = {
   "marketing/sync-now": "meta-ads-sync",
   "payments/sync-now": "razorpay-sync",
   "instagram/sync-now": "instagram-sync",
+  "logistics/sync-now": "delhivery-sync",
 };
 
 function notAvailable(feature: string) {
@@ -59,6 +62,10 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
     // ── Account features: 2FA, password reset, invitations (lib/accountRoutes.ts) ──
     const account = await handleAccountRoute(req, fullPath, method);
     if (account) return account;
+
+    // ── Workspace management: create / rename / delete workspace, create brand, change or remove members ──
+    const workspaceManagement = await handleWorkspaceRoute(req, pathParts, method);
+    if (workspaceManagement) return workspaceManagement;
 
     // ── /w/:slug/... ──────────────────────────────────────────────────────────
     if (pathParts[0] !== "w" || pathParts.length < 3) {
@@ -101,6 +108,10 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
           case "integrations":
             return respond(await listIntegrations(admin, tenant));
         }
+      }
+      // Phase 4 attribution: campaign links, campaign report, Meta comparison (lib/attributionRoutes.ts)
+      if (action.startsWith("attribution/")) {
+        return respond(await handleAttributionRoute(admin, tenant, session, req, action, method));
       }
       if (action === "integrations" && (method === "POST" || method === "PUT")) {
         return respond(await saveIntegration(admin, tenant, req));
@@ -632,9 +643,8 @@ async function disconnectIntegration(admin: SupabaseClient, tenant: TenantContex
  * requireAuth() rejects it, and it must not leave the server.)
  */
 async function forwardToEdgeFunction(functionName: string, session: SessionContext, payload: Record<string, unknown>) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const functionsUrl = process.env.NEXT_PUBLIC_FUNCTIONS_URL || (supabaseUrl ? `${supabaseUrl}/functions/v1` : "");
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const functionsUrl = functionsBaseUrl();
+  const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
   if (!functionsUrl || !anonKey) throw new RouteError(503, "Serverless functions URL is not configured");
 
   try {

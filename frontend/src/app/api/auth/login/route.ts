@@ -53,8 +53,16 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (err: any) {
     console.error("Serverless login error:", err);
+    // A missing server secret is a deployment problem, not a user problem: say so (without the value)
+    // so it is visible in the network tab and the Vercel function log.
+    if (/SUPABASE_SERVICE_ROLE_KEY is not configured/.test(err?.message || "")) {
+      return NextResponse.json(
+        { error: "Authentication service is misconfigured.", code: "server_misconfigured_service_role_key" },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
-      { error: "Internal authentication error" },
+      { error: "Internal authentication error", code: "login_internal_error" },
       { status: 500 }
     );
   }

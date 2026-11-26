@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import {
+import { Briefcase, Link2,
   LayoutDashboard,
   ShoppingBag,
   Megaphone,
@@ -39,8 +39,10 @@ const navItems: NavItem[] = [
   { name: "Connect Apps", href: "/integrations", icon: PlugZap },
   { name: "Shopify Store", href: "/shopify", icon: ShoppingBag, module: "shopify" },
   { name: "Marketing & Ads", href: "/marketing", icon: Megaphone, module: "meta_ads" },
+  { name: "Campaign Links", href: "/marketing/links", icon: Link2 },
   { name: "Payments", href: "/payments", icon: CreditCard, module: "razorpay" },
   { name: "Logistics", href: "/logistics", icon: Truck, module: "delivery" },
+  { name: "Workspace", href: "/workspace", icon: Briefcase },
   { name: "Team & Access", href: "/team", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
