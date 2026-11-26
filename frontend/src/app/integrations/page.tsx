@@ -387,35 +387,35 @@ export default function ConnectAppsPage() {
     switch (status) {
       case "connected":
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+          <span className="inline-flex items-center space-x-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Connected</span>
           </span>
         );
       case "syncing":
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
+          <span className="inline-flex items-center space-x-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
             <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
             <span>Syncing</span>
           </span>
         );
       case "token_expiring":
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+          <span className="inline-flex items-center space-x-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
             <Clock className="w-3 h-3 text-amber-600" />
             <span>Token Expiring</span>
           </span>
         );
       case "error":
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+          <span className="inline-flex items-center space-x-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
             <AlertCircle className="w-3 h-3 text-rose-600" />
             <span>Sync Error</span>
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-charcoal-600 text-xs font-semibold border border-gray-200">
+          <span className="inline-flex items-center space-x-1.5 whitespace-nowrap px-2.5 py-1 rounded-md bg-gray-100 text-charcoal-600 text-xs font-semibold border border-gray-200">
             <span className="w-2 h-2 rounded-full bg-gray-400" />
             <span>Not Connected</span>
           </span>

@@ -76,7 +76,9 @@ interface MetaStatsResponse {
 }
 
 function paise(minor?: number): string {
-  if (minor === undefined || minor === null) return "₹0";
+  // A missing value is shown as a dash, never as a fake zero. Amounts under one rupee keep their paise.
+  if (minor === undefined || minor === null) return "—";
+  if (minor > 0 && minor < 100) return "₹" + (minor / 100).toFixed(2);
   return "₹" + Math.round(minor / 100).toLocaleString("en-IN");
 }
 

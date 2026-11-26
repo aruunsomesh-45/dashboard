@@ -64,6 +64,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const pathname = usePathname();
   const [showWsMenu, setShowWsMenu] = useState(false);
+  // Phone and tablet: the sidebar opens as a drawer from the header's menu button.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [showBrandMenu, setShowBrandMenu] = useState(false);
   const [showNewWsModal, setShowNewWsModal] = useState(false);
   const [newWsName, setNewWsName] = useState("");
@@ -122,8 +124,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-ivory-100 font-sans">
-      {/* Sidebar (Forest Green) */}
-      <aside className="w-64 flex-shrink-0 flex flex-col justify-between bg-forest-900 text-ivory-200 border-r border-forest-800">
+      {/* Backdrop for the phone drawer */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
+      )}
+      {/* Sidebar (Forest Green): fixed column on desktop, drawer on phones */}
+      <aside
+        className={`w-64 flex-shrink-0 flex flex-col justify-between bg-forest-900 text-ivory-200 border-r border-forest-800 fixed md:static inset-y-0 left-0 z-40 transform transition-transform duration-200 md:translate-x-0 ${
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div>
           {/* Logo & Platform Header */}
           <div className="px-5 py-4 border-b border-forest-800 flex items-center justify-between">
@@ -253,6 +263,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.name}
                     href={item.href}
+                    onClick={() => setMobileNavOpen(false)}
                     className={`flex items-center space-x-3 px-3 py-2 rounded-md text-xs font-medium transition-all ${
                       isActive
                         ? "bg-terracotta-500 text-white shadow-sm"
@@ -307,16 +318,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Main Content Area (Ivory Surfaces) */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Header Bar */}
-        <header className="h-14 border-b border-ivory-300 bg-white px-6 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-          <div className="flex items-center space-x-3">
-            <span className="text-xs font-semibold uppercase tracking-wider text-charcoal-500">
+        <header className="h-14 border-b border-ivory-300 bg-white px-3 md:px-6 flex items-center justify-between gap-2 sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center gap-2 md:space-x-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="md:hidden flex-shrink-0 px-2.5 py-1.5 rounded-md border border-ivory-300 text-charcoal-700 text-sm font-semibold"
+              aria-label="Open menu"
+            >
+              ☰
+            </button>
+            <span className="hidden sm:inline text-xs font-semibold uppercase tracking-wider text-charcoal-500 truncate">
               {currentWorkspace?.name}
             </span>
-            <span className="text-charcoal-400">/</span>
-            <span className="text-sm font-semibold text-charcoal-900">
+            <span className="hidden sm:inline text-charcoal-400">/</span>
+            <span className="text-sm font-semibold text-charcoal-900 truncate">
               {currentBrand ? currentBrand.name : "All Brands"}
             </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-ivory-200 text-charcoal-700 border border-ivory-300">
+            <span className="hidden md:inline text-[10px] font-mono px-2 py-0.5 rounded bg-ivory-200 text-charcoal-700 border border-ivory-300">
               {currentBrand?.currency || "INR"} ({currentBrand?.timezone || "Asia/Kolkata"})
             </span>
           </div>

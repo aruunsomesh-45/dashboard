@@ -149,12 +149,12 @@ export default function OverviewPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3.5">
           {/* 1. Shopify: Revenue / Day */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-emerald-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <ShopifyLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Shopify</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
                 Daily Net
               </span>
             </div>
@@ -171,12 +171,12 @@ export default function OverviewPage() {
 
           {/* 2. Meta Ads: Blended ROAS */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-purple-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <MetaAdsLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Meta Ads</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">
                 28D Window
               </span>
             </div>
@@ -193,12 +193,12 @@ export default function OverviewPage() {
 
           {/* 3. Meta Ads: Blended CAC */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-purple-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <MetaAdsLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Meta Ads</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">
                 Acquisition
               </span>
             </div>
@@ -215,12 +215,12 @@ export default function OverviewPage() {
 
           {/* 4. Delhivery: Delivery Success % */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-blue-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <DelhiveryLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Delhivery</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold">
                 Delivered
               </span>
             </div>
@@ -237,12 +237,12 @@ export default function OverviewPage() {
 
           {/* 5. Delhivery: Orders to be Shipped */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-amber-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <DelhiveryLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Delhivery</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold">
                 Pending
               </span>
             </div>
@@ -259,12 +259,12 @@ export default function OverviewPage() {
 
           {/* 6. Razorpay: Number of Disputes */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-red-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <RazorpayLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Razorpay</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">
                 Claims
               </span>
             </div>
@@ -281,12 +281,12 @@ export default function OverviewPage() {
 
           {/* 7. Instagram: Organic Engagement */}
           <div className="p-4 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2 hover:border-rose-500 transition-colors">
-            <div className="flex items-center justify-between text-xs text-charcoal-500 font-medium">
-              <span className="flex items-center space-x-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-charcoal-500 font-medium">
+              <span className="flex min-w-0 items-center space-x-1.5">
                 <InstagramLogo className="w-4 h-4 flex-shrink-0" />
                 <span className="font-semibold text-charcoal-800">Instagram</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold">
+              <span className="whitespace-nowrap text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold">
                 Organic
               </span>
             </div>
