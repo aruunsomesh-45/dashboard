@@ -117,115 +117,140 @@
   <header>
     <div class="badge">Beginner's Setup Manual</div>
     <h1>Connect Your Store & Marketing APIs</h1>
-    <p>A step-by-step visual guide to generate, verify, and link API keys for Shopify, Razorpay, Delhivery, Meta Ads, and Organic Instagram into your 125East dashboard.</p>
+    <p>A step-by-step guide for beginners: where to get each key, and how to connect it for Shopify, Razorpay, Delhivery, Meta Ads, and Organic Instagram into your 125East dashboard.</p>
     <div class="header-links">
-      <a href="https://125east-dashboard.vercel.app/integrations" target="_blank" class="btn btn-primary">Open Integrations Hub ↗</a>
-      <a href="https://125east-dashboard.vercel.app/login" target="_blank" class="btn btn-outline">Dashboard Sign In</a>
+      <a href="https://125east.vercel.app/integrations" target="_blank" class="btn btn-primary">Open Integrations Hub ↗</a>
+      <a href="https://125east.vercel.app/login" target="_blank" class="btn btn-outline">Dashboard Sign In</a>
     </div>
   </header>
 
   <!-- Navigation Tabs -->
   <nav class="tabs-nav">
-    <button class="tab-btn active" onclick="openTab('tab-shopify')">🛍️ Shopify</button>
+    <button class="tab-btn active" onclick="openTab('tab-start')">🏁 Start Here</button>
+    <button class="tab-btn" onclick="openTab('tab-shopify')">🛍️ Shopify</button>
     <button class="tab-btn" onclick="openTab('tab-razorpay')">💳 Razorpay</button>
     <button class="tab-btn" onclick="openTab('tab-delhivery')">🚚 Delhivery</button>
     <button class="tab-btn" onclick="openTab('tab-meta')">📢 Meta Ads</button>
     <button class="tab-btn" onclick="openTab('tab-instagram')">📸 Instagram</button>
-    <button class="tab-btn" onclick="openTab('tab-faq')">❓ Master FAQs</button>
-    <button class="tab-btn" onclick="openTab('tab-cheat')">📋 Quick Cheat Sheet</button>
+    <button class="tab-btn" onclick="openTab('tab-faq')">❓ Help & FAQs</button>
+    <button class="tab-btn" onclick="openTab('tab-cheat')">✅ Checklist</button>
   </nav>
 
-  <!-- ==================== SHOPIFY TAB ==================== -->
-  <div id="tab-shopify" class="tab-content active">
+  <!-- ==================== START HERE ==================== -->
+  <div id="tab-start" class="tab-content active">
     <div class="card">
-      <h2>🛍️ Shopify Integration Guide</h2>
-      <p>Connect your Shopify store to automatically sync orders, gross/net sales, average order value (AOV), and customer retention data.</p>
+      <h2>🏁 Start Here: How the Dashboard Works (for beginners)</h2>
+      <p>This dashboard shows your sales, payments, ad results and deliveries in one place. It gets that information from your other apps (Shopify, Razorpay, Delhivery, Meta). To let it do that, you give it a few <strong>keys</strong>, one for each app. Think of a key as a password that lets the dashboard read your app's information. Nothing else is needed.</p>
 
-      <div class="alert alert-warning">
-        <strong>⚠️ Critical Pitfall (Avoid 401 Unauthorized):</strong><br>
-        Shopify generates two different credentials:
+      <div class="alert alert-info">
+        <strong>Words you will see:</strong>
         <ul style="margin: 6px 0 0 20px;">
-          <li><strong>Admin API Access Token</strong> starts with <code>shpat_</code> (This goes into the Access Token field).</li>
-          <li><strong>API Secret Key</strong> starts with <code>shpss_</code> (This goes into the Webhook Secret field).</li>
+          <li><strong>Key / token / secret:</strong> a long random text that proves the dashboard is allowed in. Keep it private.</li>
+          <li><strong>Copy:</strong> select the text and press <code>Ctrl + C</code> (on Mac: <code>Cmd + C</code>). Paste it with <code>Ctrl + V</code>.</li>
+          <li><strong>Connect / Save &amp; Connect:</strong> saves your keys in the dashboard, where they are locked up (encrypted).</li>
+          <li><strong>Sync:</strong> asks the app for its latest information and fills your dashboard.</li>
         </ul>
-        Do not paste the <code>shpss_</code> secret into the Access Token field, or Shopify will reject it with 401 Unauthorized!
       </div>
 
-      <h3>Parameters Required</h3>
+      <h3>Step 1: Open the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Go to the website</div>
+          <div class="step-desc">Open <a href="https://125east.vercel.app/login" target="_blank">https://125east.vercel.app/login</a> in Chrome. Sign in with your email and password.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Open the connections page</div>
+          <div class="step-desc">In the left menu, click <strong>Connect Apps</strong>. Direct link: <a href="https://125east.vercel.app/integrations" target="_blank">https://125east.vercel.app/integrations</a>. You will see one card for each app.</div>
+        </li>
+      </ol>
+
+      <h3>Step 2: Know what happens on each card</h3>
       <table class="param-table">
-        <thead>
-          <tr>
-            <th>Field in 125East</th>
-            <th>Required?</th>
-            <th>Expected Format</th>
-            <th>Where to Find It</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Card status</th><th>What it means</th><th>What to do</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Shopify Store Domain</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>your-store.myshopify.com</code></td>
-            <td>Your browser address bar or Shopify Admin → Settings → Domains</td>
-          </tr>
-          <tr>
-            <td><strong>Admin API Access Token</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>shpat_xxxxxxxxxxxxxxxxxxxx</code></td>
-            <td>Custom App → API credentials → Admin API access token</td>
-          </tr>
-          <tr>
-            <td><strong>Webhook HMAC Secret</strong></td>
-            <td><span class="badge-pill badge-opt">Optional</span></td>
-            <td><code>shpss_xxxxxxxxxxxxxxxxxxxx</code></td>
-            <td>Custom App → API credentials → API secret key</td>
-          </tr>
+          <tr><td><strong>Not Connected</strong></td><td>No keys saved yet.</td><td>Follow that app's tab in this guide.</td></tr>
+          <tr><td><strong>Connected</strong></td><td>Keys saved and working.</td><td>Press <strong>Sync</strong> to refresh the data.</td></tr>
+          <tr><td><strong>Sync Error</strong></td><td>Keys were rejected or expired. The reason is written on the card.</td><td>Create a new key and save it again.</td></tr>
         </tbody>
       </table>
 
-      <h3>Step-by-Step Procedure</h3>
+      <div class="alert alert-warning">
+        <strong>⚠️ Safety rules:</strong>
+        <ul style="margin: 6px 0 0 20px;">
+          <li>Never send a key by email, WhatsApp, or to anyone who asks for it.</li>
+          <li>Never paste keys into this guide, a chat, or a screenshot you share.</li>
+          <li>If a key leaks, delete it in that app and create a new one. Then save the new one in the dashboard.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SHOPIFY TAB ==================== -->
+  <div id="tab-shopify" class="tab-content">
+    <div class="card">
+      <h2>🛍️ Shopify: orders, customers and sales</h2>
+      <p>Connects your Shopify store so the dashboard can read orders, refunds, and customers.</p>
+
+      <h3>The keys you need</h3>
+      <table class="param-table">
+        <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Shopify Store Domain</strong></td><td><code>your-store.myshopify.com</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Your store's web address. Copy it from the top of your Shopify admin page, or from the address bar.</td></tr>
+          <tr><td><strong>Admin API Access Token</strong></td><td><code>shpat_…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>The password that lets the dashboard read your store. Shown once when you install the app.</td></tr>
+          <tr><td><strong>Webhook HMAC Secret</strong></td><td><code>shpss_…</code></td><td><span class="badge-pill badge-opt">Optional</span></td><td>Lets the dashboard check that new orders really came from Shopify. Found on the same page as the token. Its name in Shopify is "API secret key".</td></tr>
+        </tbody>
+      </table>
+      <div class="alert alert-warning"><strong>Common mistake:</strong> the <code>shpss_</code> key goes in the secret box. The <code>shpat_</code> token goes in the token box. Putting them the wrong way round gives a "401 Unauthorized" error.</div>
+
+      <h3>Step A: create the key in Shopify</h3>
       <ol class="steps">
         <li class="step-item">
-          <div class="step-title">Open Shopify Admin Settings</div>
-          <div class="step-desc">
-            Go to <a href="https://admin.shopify.com" target="_blank">admin.shopify.com</a> and sign in. Click <strong>Settings</strong> (⚙️ bottom-left corner).
-          </div>
+          <div class="step-title">Open Shopify admin</div>
+          <div class="step-desc">Go to <a href="https://admin.shopify.com" target="_blank">admin.shopify.com</a> and sign in to your store.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Enable Custom App Development</div>
-          <div class="step-desc">
-            Click <strong>Apps and sales channels</strong> in the settings menu. Click <strong>Develop apps</strong> at the top right. <em>(If prompted, click "Allow custom app development")</em>.
-          </div>
+          <div class="step-title">Go to Settings</div>
+          <div class="step-desc">Click <strong>Settings</strong> (the gear icon, bottom left). Then click <strong>Apps and sales channels</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Create the Custom App</div>
-          <div class="step-desc">
-            Click <strong>Create an app</strong>. Enter App Name: <code>125East Dashboard</code>, select your email, and click <strong>Create app</strong>.
-          </div>
+          <div class="step-title">Turn on custom apps</div>
+          <div class="step-desc">Click <strong>Develop apps</strong> (top right). If it asks, click <strong>Allow custom app development</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Select Scopes (Permissions)</div>
-          <div class="step-desc">
-            In the <strong>Overview</strong> tab, click <strong>Configure Admin API scopes</strong>. Search and check:
-            <ul style="margin: 8px 0 0 20px;">
-              <li>☑️ <code>read_orders</code> (Pulls orders and revenue)</li>
-              <li>☑️ <code>read_customers</code> (Pulls buyer analytics)</li>
-              <li>☑️ <code>read_products</code> (Pulls SKU & catalog sales)</li>
-            </ul>
-            Click the black <strong>Save</strong> button in the top right.
-          </div>
+          <div class="step-title">Create the app</div>
+          <div class="step-desc">Click <strong>Create an app</strong>. Name it <code>125East Dashboard</code>. Click <strong>Create app</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Install App and Copy the Token</div>
-          <div class="step-desc">
-            Switch to the <strong>API credentials</strong> tab. Click <strong>Install app</strong> and confirm. Under <strong>Admin API access token</strong>, click <strong>Reveal token once</strong>. Copy the token starting with <code>shpat_</code>.
-          </div>
+          <div class="step-title">Choose what the app may read</div>
+          <div class="step-desc">Click <strong>Configure Admin API scopes</strong>. Tick <code>read_orders</code>, <code>read_customers</code> and <code>read_products</code>. Click <strong>Save</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Connect in 125East</div>
-          <div class="step-desc">
-            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Shopify</strong> card, paste your Store Domain and <code>shpat_</code> token, and click <strong>Save & Connect</strong>! Then click <strong>Sync Now</strong> 🔄.
-          </div>
+          <div class="step-title">Install and copy the token</div>
+          <div class="step-desc">Click the <strong>API credentials</strong> tab, then <strong>Install app</strong>. Under <strong>Admin API access token</strong>, click <strong>Reveal token once</strong>. Copy the <code>shpat_</code> token and save it in Notepad. Copy the <strong>API secret key</strong> (<code>shpss_</code>) too.</div>
+        </li>
+      </ol>
+
+      <h3>Step B: connect it in the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open the Shopify card</div>
+          <div class="step-desc">Go to <a href="https://125east.vercel.app/integrations" target="_blank">Connect Apps</a>. Click <strong>Configure</strong> (or <strong>Connect Shopify</strong>) on the Shopify card.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Paste the three values</div>
+          <div class="step-desc">Store Domain → <code>your-store.myshopify.com</code>. Access Token → <code>shpat_…</code>. Webhook Secret → <code>shpss_…</code>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save</div>
+          <div class="step-desc">Click <strong>Save &amp; Connect</strong>. Wait for "Credentials encrypted &amp; stored". Then click <strong>Test</strong>. The card should show <strong>Connected</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Add the webhook (so new orders arrive automatically)</div>
+          <div class="step-desc">In the dashboard, go to <strong>Settings</strong> and copy the <strong>Shopify Webhook URL</strong>. In Shopify admin: <strong>Settings → Notifications → Webhooks → Create webhook</strong>. Event: <strong>Order creation</strong>. Format: <strong>JSON</strong>. Paste the URL and save.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Pull the data</div>
+          <div class="step-desc">Click <strong>Sync</strong> on the Shopify card. Then open <strong>Shopify Store</strong> in the left menu to see your orders and sales.</div>
         </li>
       </ol>
     </div>
@@ -234,76 +259,65 @@
   <!-- ==================== RAZORPAY TAB ==================== -->
   <div id="tab-razorpay" class="tab-content">
     <div class="card">
-      <h2>💳 Razorpay Integration Guide</h2>
-      <p>Sync payment settlement rates, refunds, customer payment failures, and bank chargebacks/disputes with zero manual reconciliation.</p>
+      <h2>💳 Razorpay: payments and refunds</h2>
+      <p>Connects Razorpay so the dashboard can show successful payments, failed payments, refunds, and how payments are split by method (UPI, card, and so on).</p>
 
-      <div class="alert alert-info">
-        <strong>💡 Live Mode vs Test Mode:</strong><br>
-        Make sure you are toggled to <strong>Live Mode</strong> in your Razorpay Dashboard before generating keys. Live keys begin with <code>rzp_live_</code>. Test keys (<code>rzp_test_</code>) will only display fake dummy data.
-      </div>
-
-      <h3>Parameters Required</h3>
+      <h3>The keys you need</h3>
       <table class="param-table">
-        <thead>
-          <tr>
-            <th>Field in 125East</th>
-            <th>Required?</th>
-            <th>Expected Format</th>
-            <th>Where to Find It</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Key ID</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>rzp_live_xxxxxxxxxxxx</code></td>
-            <td>Razorpay Dashboard → Account & Settings → API Keys</td>
-          </tr>
-          <tr>
-            <td><strong>Key Secret</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>xxxxxxxxxxxxxxxxxxxxxxxx</code></td>
-            <td>Revealed once upon generating or downloading Key Details</td>
-          </tr>
-          <tr>
-            <td><strong>Webhook Secret</strong></td>
-            <td><span class="badge-pill badge-opt">Optional</span></td>
-            <td><code>rzp_wh_secret_xxxxxxx</code></td>
-            <td>Created when setting up an instant webhook in Razorpay</td>
-          </tr>
+          <tr><td><strong>Key ID</strong></td><td><code>rzp_test_…</code> or <code>rzp_live_…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Public part of the key. Shown on the API Keys page.</td></tr>
+          <tr><td><strong>Key Secret</strong></td><td>a long random text</td><td><span class="badge-pill badge-req">Required</span></td><td>Private part. Razorpay shows it <strong>only once</strong>, when you create the key.</td></tr>
+          <tr><td><strong>Webhook Secret</strong></td><td>any long random text you choose</td><td><span class="badge-pill badge-req">Required for live updates</span></td><td>You make this up and enter it in both Razorpay and the dashboard. It proves that a message really came from Razorpay.</td></tr>
         </tbody>
       </table>
+      <div class="alert alert-info"><strong>Tip:</strong> start with <code>rzp_test_</code> keys (test mode, no real money). Switch to <code>rzp_live_</code> keys after Razorpay approves your account.</div>
 
-      <h3>Step-by-Step Procedure</h3>
+      <h3>Step A: create the keys in Razorpay</h3>
       <ol class="steps">
         <li class="step-item">
-          <div class="step-title">Open Razorpay API Keys Settings</div>
-          <div class="step-desc">
-            Log in to the <a href="https://dashboard.razorpay.com/#/app/keys" target="_blank">Razorpay Dashboard API Keys</a> page. Ensure the toggle in the top navbar is set to <strong>Live Mode</strong>.
-          </div>
+          <div class="step-title">Open the Razorpay dashboard</div>
+          <div class="step-desc">Go to <a href="https://dashboard.razorpay.com" target="_blank">dashboard.razorpay.com</a> and sign in.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Generate Key Pair</div>
-          <div class="step-desc">
-            Click <strong>Generate Key</strong> (or <strong>Regenerate Key</strong> if you already have one). A popup will display your <strong>Key ID</strong> and <strong>Key Secret</strong>. Download or copy both strings immediately.
-          </div>
+          <div class="step-title">Open API Keys</div>
+          <div class="step-desc">Click <strong>Account &amp; Settings</strong> (bottom of the left menu), then <strong>API Keys</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">(Optional) Set Up Instant Webhooks</div>
-          <div class="step-desc">
-            Go to <a href="https://dashboard.razorpay.com/#/app/webhooks" target="_blank">Razorpay Webhooks</a>. Click <strong>Add New Webhook</strong>:
-            <ul style="margin: 8px 0 0 20px;">
-              <li><strong>Webhook URL</strong>: <code>https://125east-dashboard.vercel.app/api/webhooks/razorpay/&lt;your-brand-id&gt;/</code></li>
-              <li><strong>Secret</strong>: Choose any random password (e.g. <code>my_razorpay_secret_123</code>).</li>
-              <li><strong>Active Events</strong>: Check <code>payment.captured</code>, <code>payment.failed</code>, <code>refund.processed</code>.</li>
-            </ul>
-          </div>
+          <div class="step-title">Generate the key</div>
+          <div class="step-desc">Click <strong>Generate Key</strong>. Read the warning and confirm. Razorpay shows a <strong>Key ID</strong> and a <strong>Key Secret</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Save in 125East</div>
-          <div class="step-desc">
-            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Razorpay</strong> card, paste your <code>rzp_live_</code> Key ID and Secret, and click <strong>Save & Connect</strong>.
-          </div>
+          <div class="step-title">Copy both values now</div>
+          <div class="step-desc">Copy the Key ID and the Key Secret into Notepad. The secret cannot be shown again. If you lose it, generate a new key.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Create the webhook secret</div>
+          <div class="step-desc">Make up a long password, for example 30 random letters and numbers. Save it in Notepad. You will use it in two places.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Create the webhook in Razorpay</div>
+          <div class="step-desc">Go to <strong>Account &amp; Settings → Webhooks → Add New Webhook</strong>. Paste the <strong>Razorpay Webhook URL</strong> from the dashboard's <strong>Settings</strong> page. Paste your webhook secret. Tick <strong>payment.captured</strong>, <strong>payment.failed</strong> and <strong>refund.processed</strong>. Save.</div>
+        </li>
+      </ol>
+
+      <h3>Step B: connect it in the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open the Razorpay card</div>
+          <div class="step-desc">Go to <a href="https://125east.vercel.app/integrations" target="_blank">Connect Apps</a> and click <strong>Connect Razorpay</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Paste the three values</div>
+          <div class="step-desc">Key ID → <code>rzp_…</code>. Key Secret → the secret. Webhook Secret → the password you made up.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save and test</div>
+          <div class="step-desc">Click <strong>Save &amp; Connect</strong>, then <strong>Test</strong>. The card should show <strong>Connected</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Pull the data</div>
+          <div class="step-desc">Click <strong>Sync</strong>, then open <strong>Payments</strong> in the left menu.</div>
         </li>
       </ol>
     </div>
@@ -312,138 +326,132 @@
   <!-- ==================== DELHIVERY TAB ==================== -->
   <div id="tab-delhivery" class="tab-content">
     <div class="card">
-      <h2>🚚 Delhivery / Logistics Guide</h2>
-      <p>Connect Delhivery to track real-time AWB delivery status, transit stages, RTO returns, and Non-Delivery Report (NDR) reattempts.</p>
+      <h2>🚚 Delhivery: deliveries and shipment status</h2>
+      <p>Connects Delhivery so the dashboard can show where your parcels are, which were delivered, and which failed or were returned.</p>
 
-      <h3>Parameters Required</h3>
+      <h3>The keys you need</h3>
       <table class="param-table">
-        <thead>
-          <tr>
-            <th>Field in 125East</th>
-            <th>Required?</th>
-            <th>Expected Format</th>
-            <th>Where to Find It</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Client ID / Account Name</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>merchant_account_name</code></td>
-            <td>Delhivery One Portal → Profile / Account Settings</td>
-          </tr>
-          <tr>
-            <td><strong>API Token</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>Bearer token (40-char string)</code></td>
-            <td>Delhivery One Portal → Settings → API Keys</td>
-          </tr>
+          <tr><td><strong>Client ID / Account Code</strong></td><td><code>DLH_…</code> (your account)</td><td><span class="badge-pill badge-opt">Optional for now</span></td><td>Your Delhivery account reference. The dashboard does not use it yet. Ask Delhivery for it if you can't find it.</td></tr>
+          <tr><td><strong>API Token</strong></td><td>a long random text</td><td><span class="badge-pill badge-req">Required</span></td><td>The password that lets the dashboard read your shipments.</td></tr>
+          <tr><td><strong>Webhook Secret Key</strong></td><td>—</td><td><span class="badge-pill badge-opt">Not used yet</span></td><td>Leave it empty.</td></tr>
         </tbody>
       </table>
 
-      <h3>Step-by-Step Procedure</h3>
+      <h3>Step A: create the token in Delhivery One</h3>
       <ol class="steps">
         <li class="step-item">
-          <div class="step-title">Log in to Delhivery One Portal</div>
-          <div class="step-desc">
-            Navigate to <a href="https://one.delhivery.com/" target="_blank">Delhivery One Portal</a>. Sign in with your registered merchant credentials.
-          </div>
+          <div class="step-title">Sign in to Delhivery One</div>
+          <div class="step-desc">Sign in at Delhivery One (the Delhivery business portal). Your account must be set up first: business details, KYC, and at least one pickup location. Delhivery's <a href="https://help.delhivery.com/docs/start-your-shipping-journey-with-delhivery-one" target="_blank">getting-started guide</a> explains this.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Navigate to API Settings</div>
-          <div class="step-desc">
-            Go to <strong>Settings</strong> → <strong>API & Integrations</strong> (or <strong>Developer Settings</strong>).
-          </div>
+          <div class="step-title">Open API Setup</div>
+          <div class="step-desc">Click <strong>Main Menu → Settings → API Setup</strong>. This is the menu path in Delhivery's <a href="https://help.delhivery.com/docs/api-token-generation" target="_blank">token guide</a>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Copy Your Client Name and API Token</div>
-          <div class="step-desc">
-            Copy your registered <strong>Client Name</strong> (e.g., <code>YOURCOMPANY_EXPRESS</code>) and the production <strong>API Token</strong>.
-          </div>
+          <div class="step-title">Get the token</div>
+          <div class="step-desc">If you can see a token, click the copy button next to it. If you don't have one, click <strong>Request Live API Token</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Connect in 125East</div>
-          <div class="step-desc">
-            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand the <strong>Delhivery</strong> card, paste your Client Name and API Token, and click <strong>Save & Connect</strong>.
-          </div>
+          <div class="step-title">Save it straight away</div>
+          <div class="step-desc">Delhivery shows the token for only <strong>5 minutes</strong>, and you can reveal it <strong>only once</strong>. Paste it into Notepad at once.</div>
         </li>
       </ol>
+      <div class="alert alert-warning"><strong>Important:</strong> generating a new token makes the old one stop working immediately. If another system uses the old token, update it there as well.</div>
+
+      <h3>Step B: connect it in the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open the Delhivery card</div>
+          <div class="step-desc">Go to <a href="https://125east.vercel.app/integrations" target="_blank">Connect Apps</a> and click <strong>Connect Delhivery Logistics</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Paste the values</div>
+          <div class="step-desc">Client ID → your account reference (or your account name if you don't have it yet). API Token → the token you copied. Leave the webhook box empty.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save and test</div>
+          <div class="step-desc">Click <strong>Save &amp; Connect</strong>, then <strong>Test</strong>. You should see <strong>Connected</strong>. "rejected the API token" means the token is wrong or it's a staging token.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Pull shipment data</div>
+          <div class="step-desc">Open <strong>Logistics</strong> in the left menu. In the box called <strong>Sync Delhivery shipments</strong>, type the waybill numbers (AWB numbers) of your parcels, one per line or separated by commas. Click <strong>Sync shipments</strong>.</div>
+        </li>
+      </ol>
+      <div class="alert alert-info"><strong>Where do waybill numbers come from?</strong> Each parcel you ship gets one (usually 10 to 12 digits). It appears on the shipping label and in Delhivery One. Once synced, the dashboard refreshes those parcels on its own.</div>
     </div>
   </div>
 
-  <!-- ==================== META ADS TAB ==================== -->
+  <!-- ==================== META TAB ==================== -->
   <div id="tab-meta" class="tab-content">
     <div class="card">
-      <h2>📢 Meta Ads (Facebook & Instagram Ads)</h2>
-      <p>Pull daily ad spend, ROAS, cost per acquisition (CAC), click-through rate (CTR), and attribution metrics directly from Meta Ads Manager.</p>
+      <h2>📢 Meta Ads: Facebook and Instagram ads</h2>
+      <p>Connects your ad account so the dashboard can show spend, clicks, purchases and return on ad spend (ROAS) by day and by campaign.</p>
 
-      <div class="alert alert-warning">
-        <strong>⚠️ Never Use Short-Lived User Tokens:</strong><br>
-        Standard Facebook user tokens expire in 1 to 2 hours! To ensure your dashboard updates continuously without breaking, create a <strong>System User Token</strong> in Meta Business Suite, which never expires.
-      </div>
-
-      <h3>Parameters Required</h3>
+      <h3>The keys you need</h3>
       <table class="param-table">
-        <thead>
-          <tr>
-            <th>Field in 125East</th>
-            <th>Required?</th>
-            <th>Expected Format</th>
-            <th>Where to Find It</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Ad Account ID</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>act_xxxxxxxxxxxxxxxx</code></td>
-            <td>Meta Ads Manager URL (e.g. <code>act_1234567890</code>)</td>
-          </tr>
-          <tr>
-            <td><strong>System User Access Token</strong></td>
-            <td><span class="badge-pill badge-req">Required</span></td>
-            <td><code>EAABxxxxxxxxxxxxxxxxxxxx</code></td>
-            <td>Business Settings → System Users → Generate New Token</td>
-          </tr>
+          <tr><td><strong>Ad Account ID</strong></td><td><code>act_1234567890</code></td><td><span class="badge-pill badge-req">Required</span></td><td>The number of your ad account. Starts with <code>act_</code>.</td></tr>
+          <tr><td><strong>System User Access Token</strong></td><td><code>EAAB…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>The password that lets the dashboard read your ads. Use a system user token set to <strong>never expire</strong>. A normal token expires every day.</td></tr>
         </tbody>
       </table>
+      <div class="alert alert-warning"><strong>Why a system user?</strong> Tokens made from the Graph API Explorer or your personal login expire within hours or days. The sync then fails with "Session has expired". A system user token does not expire.</div>
 
-      <h3>Step-by-Step Procedure</h3>
+      <h3>Step A: find your Ad Account ID</h3>
       <ol class="steps">
         <li class="step-item">
-          <div class="step-title">Find Your Ad Account ID</div>
-          <div class="step-desc">
-            Open <a href="https://adsmanager.facebook.com/" target="_blank">Meta Ads Manager</a>. In the top-left account dropdown or browser URL, look for the account ID. Include the <code>act_</code> prefix (e.g. <code>act_1029384756</code>).
-          </div>
+          <div class="step-title">Open Ads Manager</div>
+          <div class="step-desc">Go to <a href="https://adsmanager.facebook.com" target="_blank">adsmanager.facebook.com</a>. Pick the right ad account at the top left.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Open Meta Business Settings</div>
-          <div class="step-desc">
-            Go to <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings → System Users</a>. If you don't have a System User, click <strong>Add</strong>, set Role as <strong>Admin</strong>, and name it <code>125East Sync</code>.
-          </div>
+          <div class="step-title">Copy the number</div>
+          <div class="step-desc">Look at the web address. It contains <code>act=…</code>. The number after <code>act=</code> is your ID. Write it as <code>act_</code> followed by that number.</div>
+        </li>
+      </ol>
+
+      <h3>Step B: create a never-expiring token</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open Business Settings</div>
+          <div class="step-desc">Go to <a href="https://business.facebook.com/settings" target="_blank">business.facebook.com/settings</a>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Assign Assets to System User</div>
-          <div class="step-desc">
-            Click <strong>Add Assets</strong> on your System User. Under <strong>Ad Accounts</strong>, select your store's Ad Account, toggle on <strong>Full Control / Manage Ad Account</strong>, and click <strong>Save Changes</strong>.
-          </div>
+          <div class="step-title">Create a system user</div>
+          <div class="step-desc">Click <strong>Users → System users → Add</strong>. Name it <code>125east-dashboard</code>. Role: <strong>Admin</strong>. Click <strong>Create system user</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Generate Never-Expiring Token</div>
-          <div class="step-desc">
-            Click <strong>Generate New Token</strong>. Select your app, set token expiration to <strong>Never</strong>, and check these permissions:
-            <ul style="margin: 8px 0 0 20px;">
-              <li>☑️ <code>ads_read</code></li>
-              <li>☑️ <code>read_insights</code></li>
-            </ul>
-            Click <strong>Generate Token</strong> and copy the string starting with <code>EAAB...</code>.
-          </div>
+          <div class="step-title">Give it your ad account</div>
+          <div class="step-desc">Select the system user. Click <strong>Add assets → Ad accounts</strong>. Tick your ad account and turn on <strong>View performance</strong>. Click <strong>Save changes</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Connect in 125East</div>
-          <div class="step-desc">
-            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand <strong>Meta Ads</strong>, paste your <code>act_</code> account ID and <code>EAAB...</code> token, and click <strong>Save & Connect</strong>!
-          </div>
+          <div class="step-title">Generate the token</div>
+          <div class="step-desc">With the system user still selected, click <strong>Generate new token</strong>. Choose your app. Tick <strong>ads_read</strong>. Set the expiration to <strong>Never</strong>. Click <strong>Generate token</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Copy it now</div>
+          <div class="step-desc">Copy the token into Notepad. Meta shows it only once.</div>
+        </li>
+      </ol>
+
+      <h3>Step C: connect it in the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open the Meta Ads card</div>
+          <div class="step-desc">Go to <a href="https://125east.vercel.app/integrations" target="_blank">Connect Apps</a> and click <strong>Configure</strong> on the Meta Ads card.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Paste the two values</div>
+          <div class="step-desc">Ad Account ID → <code>act_…</code>. System User Access Token → the <code>EAAB…</code> token.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Save and test</div>
+          <div class="step-desc">Click <strong>Save &amp; Connect</strong>, then <strong>Test</strong>. The card should show <strong>Connected</strong>.</div>
+        </li>
+        <li class="step-item">
+          <div class="step-title">Pull the campaigns</div>
+          <div class="step-desc">Open <strong>Marketing &amp; Ads</strong> and press <strong>Sync Data</strong>. The first sync fetches up to a year of history, one month at a time, so it can take a few minutes. Keep the page open. Then choose <strong>Last 30 Days</strong> or <strong>All-Time</strong> to see the numbers.</div>
         </li>
       </ol>
     </div>
@@ -452,45 +460,44 @@
   <!-- ==================== INSTAGRAM TAB ==================== -->
   <div id="tab-instagram" class="tab-content">
     <div class="card">
-      <h2>📸 Organic Instagram Account Guide</h2>
-      <p>Sync organic post performance, follower engagement rate, reach, and organic impressions from your brand's Instagram profile.</p>
+      <h2>📸 Instagram: your organic account</h2>
+      <p>Checks that the dashboard can reach your Instagram business account. Daily follower and reach numbers are not shown yet.</p>
 
-      <div class="alert alert-info">
-        <strong>💡 Account Prerequisite:</strong><br>
-        Instagram's official API requires your Instagram account to be a <strong>Professional Account</strong> (Business or Creator) and linked to a Facebook Page you manage. Personal profiles are not supported by Meta's Graph API.
-      </div>
+      <h3>The keys you need</h3>
+      <table class="param-table">
+        <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Instagram Business Handle</strong></td><td><code>@yourbrand</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Your Instagram username.</td></tr>
+          <tr><td><strong>Graph API User Token</strong></td><td><code>EAAB…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>The password that lets the dashboard read your account. Use a token from your system user (the same method as Meta Ads).</td></tr>
+        </tbody>
+      </table>
+      <div class="alert alert-info"><strong>Before you start:</strong> your Instagram account must be a <strong>Business</strong> or <strong>Creator</strong> account, linked to a Facebook Page. In Instagram: Settings → Account type and tools → Switch to professional account.</div>
 
-      <h3>Step-by-Step Procedure</h3>
+      <h3>Step A: create the token</h3>
       <ol class="steps">
         <li class="step-item">
-          <div class="step-title">Switch to a Professional Account in Instagram App</div>
-          <div class="step-desc">
-            In the Instagram mobile app, go to <strong>Profile → Settings & Privacy → Account type and tools</strong> → Tap <strong>Switch to professional account</strong> (Choose <em>Business</em>).
-          </div>
+          <div class="step-title">Use the same system user</div>
+          <div class="step-desc">Follow Meta Ads <strong>Step B</strong> above. When you generate the token, also tick <strong>instagram_basic</strong> and <strong>pages_read_engagement</strong>, with expiration <strong>Never</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Connect Instagram to Your Facebook Page</div>
-          <div class="step-desc">
-            In Instagram settings, tap <strong>Linked Accounts / Business Profile</strong> → Connect your store's Facebook Page.
-          </div>
+          <div class="step-title">Give the system user your Instagram account</div>
+          <div class="step-desc">In Business Settings, select the system user → <strong>Add assets → Instagram accounts</strong> → tick your account → <strong>Save changes</strong>.</div>
+        </li>
+      </ol>
+
+      <h3>Step B: connect it in the dashboard</h3>
+      <ol class="steps">
+        <li class="step-item">
+          <div class="step-title">Open the Instagram card</div>
+          <div class="step-desc">Go to <a href="https://125east.vercel.app/integrations" target="_blank">Connect Apps</a> and click <strong>Connect Instagram Organic</strong>.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Generate Instagram Graph API Token</div>
-          <div class="step-desc">
-            In <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings → System Users</a>, click <strong>Generate New Token</strong> and ensure the following permissions are granted:
-            <ul style="margin: 8px 0 0 20px;">
-              <li>☑️ <code>instagram_basic</code></li>
-              <li>☑️ <code>instagram_manage_insights</code></li>
-              <li>☑️ <code>pages_show_list</code></li>
-              <li>☑️ <code>pages_read_engagement</code></li>
-            </ul>
-          </div>
+          <div class="step-title">Paste the two values</div>
+          <div class="step-desc">Handle → <code>@yourbrand</code>. Graph API User Token → the <code>EAAB…</code> token.</div>
         </li>
         <li class="step-item">
-          <div class="step-title">Save in 125East</div>
-          <div class="step-desc">
-            Open <a href="https://125east-dashboard.vercel.app/integrations" target="_blank">125East Integrations</a>, expand <strong>Instagram</strong>, enter your handle (e.g. <code>@yourbrand</code>) and token, and click <strong>Save & Connect</strong>.
-          </div>
+          <div class="step-title">Save and test</div>
+          <div class="step-desc">Click <strong>Save &amp; Connect</strong>, then <strong>Test</strong>. Connected means the dashboard can see your account.</div>
         </li>
       </ol>
     </div>
@@ -499,142 +506,44 @@
   <!-- ==================== FAQ TAB ==================== -->
   <div id="tab-faq" class="tab-content">
     <div class="card">
-      <h2>❓ Master FAQs & Troubleshooting</h2>
+      <h2>❓ Help & FAQs</h2>
 
-      <div class="faq-item open">
-        <div class="faq-q" onclick="toggleFaq(this)">1. Why do I get "Shopify rejected the Admin API Access Token (401 Unauthorized)"?</div>
-        <div class="faq-a">
-          This almost always happens when you paste the <strong>API secret key</strong> (which begins with <code>shpss_</code>) into the <em>Admin API Access Token</em> box instead of the actual token (which begins with <code>shpat_</code>).<br><br>
-          <strong>Fix:</strong> In Shopify Admin → Apps and sales channels → Develop apps → Your App → API credentials, look at the top box titled <em>Admin API access token</em>. Click <strong>Reveal token once</strong> to copy the token starting with <code>shpat_</code>.
-        </div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">2. Do I need to set up webhooks right now to see my orders?</div>
-        <div class="faq-a">
-          <strong>No!</strong> You can leave the Webhook Secret empty initially. When you click <strong>Sync Now</strong> in your 125East dashboard, the backend automatically calls the Shopify REST API to pull the past 90 days of order and customer data into your database. Webhooks are only necessary later if you want instant, real-time push whenever a new order is completed.
-        </div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">3. Why are my Razorpay payments not showing up?</div>
-        <div class="faq-a">
-          Check two things:
-          <ol style="margin: 8px 0 0 20px;">
-            <li>Are you using <code>rzp_test_...</code> keys? Test keys will only pull sandbox transactions. Generate <code>rzp_live_...</code> keys from Razorpay Dashboard Live Mode.</li>
-            <li>Ensure you copied the entire Key Secret without trailing spaces.</li>
-          </ol>
-        </div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">4. Why does my Meta Ads token stop working after a few days?</div>
-        <div class="faq-a">
-          Tokens created through the Graph API Explorer or standard user login expire in 1–2 hours or 60 days. You must generate a <strong>System User Token</strong> inside <a href="https://business.facebook.com/settings/system-users" target="_blank">Meta Business Settings</a>. System user tokens do not have an expiration date.
-        </div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">5. How do I know if my data has been pulled successfully?</div>
-        <div class="faq-a">
-          You can check in 2 places:
-          <ul style="margin: 8px 0 0 20px;">
-            <li><strong>In Dashboard UI:</strong> The integration card will show 🟢 <strong>Connected</strong> and a timestamp like <em>"Last synced: Today at 2:15 PM"</em>. Then click the <strong>Shopify</strong> tab in the sidebar to see your sales graphs.</li>
-            <li><strong>In Terminal:</strong> Run <code>.\.venv\Scripts\python.exe backend/check_data_sync.py</code>. It outputs the exact count of orders, shipments, and ad rows saved in your database.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">6. Is my API data and keys stored securely?</div>
-        <div class="faq-a">
-          Yes. All external API keys and secrets are encrypted at rest using industry-standard <strong>AES-256-GCM encryption</strong> in PostgreSQL before they ever touch the database disk. No plain-text tokens are visible in database logs.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==================== CHEAT SHEET TAB ==================== -->
-  <div id="tab-cheat" class="tab-content">
-    <div class="card">
-      <h2>📋 Quick Parameter Cheat Sheet</h2>
-      <p>Use this reference table to verify every parameter before saving in the dashboard:</p>
-
+      <h3>What do the error messages mean?</h3>
       <table class="param-table">
-        <thead>
-          <tr>
-            <th>Platform</th>
-            <th>Field Label</th>
-            <th>Starting Prefix</th>
-            <th>Direct Link to Generate</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Message on the card</th><th>What it means</th><th>What to do</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Shopify</strong></td>
-            <td>Store Domain</td>
-            <td><code>[brand].myshopify.com</code></td>
-            <td><a href="https://admin.shopify.com" target="_blank">Shopify Admin ↗</a></td>
-          </tr>
-          <tr>
-            <td><strong>Shopify</strong></td>
-            <td>Admin API Access Token</td>
-            <td><code>shpat_</code></td>
-            <td><a href="https://admin.shopify.com/settings/apps/development" target="_blank">Shopify Develop Apps ↗</a></td>
-          </tr>
-          <tr>
-            <td><strong>Shopify</strong></td>
-            <td>Webhook Secret</td>
-            <td><code>shpss_</code></td>
-            <td>Custom App → API secret key</td>
-          </tr>
-          <tr>
-            <td><strong>Razorpay</strong></td>
-            <td>Key ID</td>
-            <td><code>rzp_live_</code></td>
-            <td><a href="https://dashboard.razorpay.com/#/app/keys" target="_blank">Razorpay Keys ↗</a></td>
-          </tr>
-          <tr>
-            <td><strong>Razorpay</strong></td>
-            <td>Key Secret</td>
-            <td><em>(32-character secret)</em></td>
-            <td>Razorpay API Key modal</td>
-          </tr>
-          <tr>
-            <td><strong>Delhivery</strong></td>
-            <td>Client ID</td>
-            <td><code>merchant_name</code></td>
-            <td><a href="https://one.delhivery.com/" target="_blank">Delhivery One ↗</a></td>
-          </tr>
-          <tr>
-            <td><strong>Delhivery</strong></td>
-            <td>API Token</td>
-            <td><em>(Bearer Token)</em></td>
-            <td>Delhivery Developer Settings</td>
-          </tr>
-          <tr>
-            <td><strong>Meta Ads</strong></td>
-            <td>Ad Account ID</td>
-            <td><code>act_</code></td>
-            <td><a href="https://adsmanager.facebook.com/" target="_blank">Meta Ads Manager ↗</a></td>
-          </tr>
-          <tr>
-            <td><strong>Meta Ads</strong></td>
-            <td>Access Token</td>
-            <td><code>EAAB...</code></td>
-            <td><a href="https://business.facebook.com/settings/system-users" target="_blank">Business System Users ↗</a></td>
-          </tr>
+          <tr><td>"Shopify rejected the Admin API token (401)"</td><td>The <code>shpat_</code> token is wrong, or the app was removed.</td><td>Reveal the token again in Shopify and save it.</td></tr>
+          <tr><td>"Session has expired"</td><td>The Meta token has run out.</td><td>Make a system user token set to Never expire (Meta Ads tab).</td></tr>
+          <tr><td>"Razorpay rejected the API key/secret"</td><td>Key ID and Key Secret don't match, or the key was deleted.</td><td>Generate a new key pair in Razorpay and save both values.</td></tr>
+          <tr><td>"Delhivery rejected the API token"</td><td>The token is wrong, or a newer token replaced it.</td><td>Copy the current token from Delhivery One → Settings → API Setup.</td></tr>
+          <tr><td>"Backend server is temporarily unavailable"</td><td>A short service problem.</td><td>Wait a minute and try again.</td></tr>
         </tbody>
       </table>
 
-      <h3>Beginner's Connection Checklist</h3>
+      <h3>Common questions</h3>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Why is the dashboard empty? <span>▾</span></div><div class="faq-a">The card must say <strong>Connected</strong>, and you must press <strong>Sync</strong> once. Empty history for the all-time view means the first Meta sync hasn't finished.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Do I need to sync every day? <span>▾</span></div><div class="faq-a">No. The dashboard refreshes Shopify, Razorpay and Meta every few hours on its own. You only need Sync after connecting, or if you want the latest numbers right now.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Can I see my own keys again? <span>▾</span></div><div class="faq-a">No, and that's by design. The dashboard stores them encrypted and never shows them. To change one, paste a new value into the card and press Save &amp; Connect.</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)">Is this safe? <span>▾</span></div><div class="faq-a">Keys are encrypted before they are saved, and only the server can read them. Your dashboard login uses two-factor authentication if you turn it on.</div></div>
+    </div>
+  </div>
+
+  <!-- ==================== CHECKLIST TAB ==================== -->
+  <div id="tab-cheat" class="tab-content">
+    <div class="card">
+      <h2>✅ Checklist: tick each one as you finish</h2>
       <ul class="checklist">
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Generated Shopify Custom App with <code>read_orders</code>, <code>read_customers</code></li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Copied Shopify <code>shpat_</code> token (NOT <code>shpss_</code>) into 125East</li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Generated Razorpay Live Mode key (starts with <code>rzp_live_</code>)</li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Grabbed Delhivery Client Name & API Token from Delhivery One portal</li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Created Meta System User and generated non-expiring token with <code>ads_read</code></li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Clicked "Sync Now" on connected cards and verified data in Dashboard tabs</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> I can sign in at <code>125east.vercel.app/login</code></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Shopify: created the app, copied the <code>shpat_</code> token and the <code>shpss_</code> secret, saved both, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Shopify: webhook created with the URL from the dashboard Settings page</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Razorpay: generated the key, copied the Key ID and Key Secret, saved, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Razorpay: webhook created with the same secret I saved in the dashboard</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Delhivery: copied the API token from API Setup, saved, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Delhivery: typed at least one waybill on the Logistics page and pressed Sync shipments</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Meta Ads: created a system user with a never-expiring <code>ads_read</code> token, saved the Ad Account ID and token, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Meta Ads: pressed Sync Data on Marketing &amp; Ads and waited for it to finish</li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Instagram: saved the handle and token, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> All cards show <strong>Connected</strong> (no Sync Error)</li>
       </ul>
     </div>
   </div>
