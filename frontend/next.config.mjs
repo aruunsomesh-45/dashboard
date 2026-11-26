@@ -24,6 +24,11 @@ const nextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
         ],
       },
+      {
+        // The in-app guide is shown inside the Guide page, which is on the same site. Only this page may be framed by its own site.
+        source: "/guide.html",
+        headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }],
+      },
     ];
   },
   ...(isExport ? {} : {
