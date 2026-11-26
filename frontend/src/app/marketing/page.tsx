@@ -41,8 +41,8 @@ interface MetaSummary {
   impressions: number;
   clicks: number;
   ctr: number;
-  cpc_minor: number;
-  cpm_minor: number;
+  cpc_minor: number | null;
+  cpm_minor: number | null;
   orders: number;
   attributed_revenue_minor: number;
   roas: number;
@@ -75,7 +75,7 @@ interface MetaStatsResponse {
   error?: string;
 }
 
-function paise(minor?: number): string {
+function paise(minor?: number | null): string {
   // A missing value is shown as a dash, never as a fake zero. Amounts under one rupee keep their paise.
   if (minor === undefined || minor === null) return "—";
   if (minor > 0 && minor < 100) return "₹" + (minor / 100).toFixed(2);
@@ -353,7 +353,7 @@ export default function MarketingPage() {
                   <div className="p-5 rounded-xl bg-white border border-ivory-300 shadow-sm space-y-2">
                     <div className="text-xs text-charcoal-500 font-medium">Click-Through Rate (CTR)</div>
                     <div className="text-2xl font-bold text-charcoal-900 tracking-tight">
-                      {activeSummary?.ctr ? `${activeSummary.ctr}%` : "0.00%"}
+                      {activeSummary?.ctr == null ? "—" : `${activeSummary.ctr}%`}
                     </div>
                     <div className="text-xs text-charcoal-400">
                       {activeSummary?.impressions ? activeSummary.impressions.toLocaleString() : 0} impressions
@@ -441,7 +441,7 @@ export default function MarketingPage() {
                                 {c.clicks.toLocaleString()}
                               </td>
                               <td className="px-4 py-3 font-semibold text-charcoal-800">
-                                {c.ctr}%
+                                {c.ctr == null ? "—" : `${c.ctr}%`}
                               </td>
                               <td className="px-4 py-3 font-mono text-charcoal-600">
                                 {paise(c.cpc_minor)}

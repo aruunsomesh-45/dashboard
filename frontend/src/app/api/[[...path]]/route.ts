@@ -484,9 +484,10 @@ function summarizeAds(rows: any[]) {
     spend_minor: spend,
     impressions,
     clicks,
-    ctr: impressions ? Math.round((clicks / impressions) * 10000) / 100 : 0,
-    cpc_minor: clicks ? Math.round(spend / clicks) : 0,
-    cpm_minor: impressions ? Math.round((spend / impressions) * 1000) : 0,
+    // A ratio with no denominator is unavailable (null, shown as "—"), never a made-up 0.
+    ctr: impressions ? Math.round((clicks / impressions) * 10000) / 100 : null,
+    cpc_minor: clicks ? Math.round(spend / clicks) : null,
+    cpm_minor: impressions ? Math.round((spend / impressions) * 1000) : null,
     orders,
     attributed_revenue_minor: revenue,
     roas: spend ? Math.round((revenue / spend) * 100) / 100 : 0,
