@@ -146,3 +146,38 @@ Deno.test({ ...opts, name: "Delhivery sync", fn: async (t) => {
     assertEquals(r.status, 404);
   });
 }});
+
+// ───────────────── Delhivery connection test (the card's "Test" button) ─────────────────
+import { createHandler as testConn } from "../../supabase/functions/test-connection/handler.ts";
+
+Deno.test({ ...opts, name: "Delhivery connection test", fn: async (t) => {
+  const w = await World.create();
+  const A = await w.signUp("owner-dlv-test@example.test", "Dlv Test Org");
+  const h = () => testConn(w.deps());
+  const bodyFor = (credentials: Record<string, unknown>) => ({ provider: "delhivery", workspace_id: A.workspace_id, brand_id: A.brand_id, credentials });
+
+  await t.step("missing token -> failed with a clear message, no network call", async () => {
+    const before = w.http.calls.length;
+    const r = await call(h(), "test-connection", { token: A.token, body: bodyFor({ api_token: "" }) });
+    assertEquals(r.body.data.connection_status, "failed");
+    assert(String(r.body.data.error_message).includes("API token is required"), JSON.stringify(r.body));
+    assertEquals(w.http.calls.length, before);
+  });
+
+  await t.step("token rejected by Delhivery (401) -> failed, the message names the token", async () => {
+    w.http.routes = [];
+    w.http.on(/track\.delhivery\.com\/api\/v1\/packages\/json\//, () => new Response("Unauthorized", { status: 401 }));
+    const r = await call(h(), "test-connection", { token: A.token, body: bodyFor({ api_token: "wrong-token" }) });
+    assertEquals(r.body.data?.connection_status ?? "failed", "failed");
+    assert(String(r.body.error ?? r.body.data?.error_message ?? "").includes("rejected the API token"), JSON.stringify(r.body));
+  });
+
+  await t.step("token accepted -> connected; the token is sent as 'Authorization: Token <key>'", async () => {
+    w.http.routes = [];
+    w.http.on(/track\.delhivery\.com\/api\/v1\/packages\/json\//, () => json({ ShipmentData: [] }));
+    const r = await call(h(), "test-connection", { token: A.token, body: bodyFor({ api_token: "good-token-123" }) });
+    assertEquals(r.status, 200, JSON.stringify(r.body));
+    assertEquals(r.body.data.connection_status, "connected");
+    assertEquals(w.http.calls.at(-1)!.headers.get("Authorization"), "Token good-token-123");
+  });
+}});
