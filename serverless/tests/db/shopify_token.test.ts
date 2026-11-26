@@ -61,6 +61,15 @@ Deno.test({ ...opts, name: "Shopify automatic token renewal", fn: async (t) => {
     assert(String(row.last_error_message).includes("Client secret"), row.last_error_message);
   });
 
+  await t.step("rejected secret: Shopify's own reason is shown, the secret is not", async () => {
+    w.http.routes = [];
+    w.http.on(TOKEN_URL, () => json({ error: "invalid_client", error_description: "The client credentials are invalid" }, 400));
+    const r = await call(h(), "shopify-sync", { token: A.token, body: body(A) });
+    assertEquals(r.status, 401);
+    assert(String(r.body.error).includes("The client credentials are invalid"), JSON.stringify(r.body));
+    assert(!String(r.body.error).includes("shpss_client_secret_456"), "the secret must never appear in a message");
+  });
+
   await t.step("unknown Client ID (Shopify HTML error page) -> 401 with the 'not recognised' reason", async () => {
     w.http.routes = [];
     w.http.on(TOKEN_URL, () => new Response("<html><title>400 - Oauth error application_cannot_be_found</title></html>", { status: 400, headers: { "Content-Type": "text/html" } }));
