@@ -3,7 +3,7 @@ import { decryptCredentials } from "./crypto.ts";
 import { HttpError } from "./http.ts";
 import { logger } from "./logger.ts";
 
-export type Provider = "shopify" | "razorpay" | "meta_ads" | "instagram";
+export type Provider = "shopify" | "razorpay" | "meta_ads" | "instagram" | "delhivery";
 
 export interface LoadedIntegration {
   id: string;
@@ -46,8 +46,71 @@ export async function loadIntegration(
   return { ...rest, credentials } as LoadedIntegration;
 }
 
-/** Records a sync attempt in integrations_syncrun (sync history). */
-export async function startSyncRun(admin: SupabaseClient, integ: LoadedIntegration, resource: string): Promise<string | null> {
+/** Incremental-sync checkpoint (integrations_synccursor) for one integration + resource, or null. */
+export async function loadCursor(admin: SupabaseClient, integ: LoadedIntegration, resource: string): Promise<string | null> {
+  const { data, error } = await admin.from("integrations_synccursor").select("cursor_value")
+    .eq("integration_id", integ.id).eq("resource", resource).maybeSingle();
+  if (error) {
+    logger.warn("Could not read sync cursor", { provider: integ.provider, error: error.message });
+    return null;
+  }
+  return data?.cursor_value || null;
+}
+
+/**
+ * Advances the checkpoint. ISO-8601 UTC strings compare chronologically, and the cursor never moves
+ * backwards, so a historical backfill can't rewind an incremental sync.
+ */
+export async function saveCursor(admin: SupabaseClient, integ: LoadedIntegration, resource: string, value: string): Promise<boolean> {
+  const current = await loadCursor(admin, integ, resource);
+  if (current && current >= value) return false;
+  const { error } = await admin.from("integrations_synccursor").upsert({
+    workspace_id: integ.workspace_id,
+    brand_id: integ.brand_id,
+    integration_id: integ.id,
+    resource,
+    cursor_value: value,
+    last_checkpoint: new Date().toISOString(),
+  }, { onConflict: "integration_id,resource" });
+  if (error) {
+    logger.warn("Could not save sync cursor", { provider: integ.provider, error: error.message });
+    return false;
+  }
+  return true;
+}
+
+/** Re-read this much before the checkpoint so records updated around the boundary are never missed. */
+export const CURSOR_OVERLAP_MS = 10 * 60_000;
+
+/** A run still marked `running` after this long is treated as abandoned (Edge Functions time out far sooner). */
+export const STALE_RUN_MINUTES = 15;
+
+/**
+ * Records a sync attempt in integrations_syncrun (sync history) and acts as the overlap lock:
+ * the partial unique index uq_syncrun_one_running (migration 20261123120000) allows only one
+ * `running` row per (integration, resource), so a concurrent second run gets 409 instead of
+ * double-ingesting. Abandoned runs older than STALE_RUN_MINUTES are closed first so they can't block forever.
+ */
+export async function startSyncRun(
+  admin: SupabaseClient,
+  integ: LoadedIntegration,
+  resource: string,
+  triggeredBy: "manual" | "cron" = "manual",
+): Promise<string | null> {
+  const staleBefore = new Date(Date.now() - STALE_RUN_MINUTES * 60_000).toISOString();
+  const { error: staleErr } = await admin
+    .from("integrations_syncrun")
+    .update({
+      status: "failed",
+      finished_at: new Date().toISOString(),
+      error_message: `Abandoned: no completion recorded within ${STALE_RUN_MINUTES} minutes`,
+    })
+    .eq("integration_id", integ.id)
+    .eq("resource", resource)
+    .eq("status", "running")
+    .lt("started_at", staleBefore);
+  if (staleErr) logger.warn("Could not expire stale sync runs", { provider: integ.provider, error: staleErr.message });
+
   const { data, error } = await admin
     .from("integrations_syncrun")
     .insert({
@@ -56,11 +119,15 @@ export async function startSyncRun(admin: SupabaseClient, integ: LoadedIntegrati
       integration_id: integ.id,
       status: "running",
       resource,
+      triggered_by: triggeredBy,
       started_at: new Date().toISOString(),
     })
     .select("id")
     .single();
   if (error) {
+    if ((error as { code?: string }).code === "23505") {
+      throw new HttpError(409, `A ${integ.provider} sync is already running for this brand; try again shortly`);
+    }
     logger.warn("Could not create sync run", { provider: integ.provider, error: error.message });
     return null;
   }

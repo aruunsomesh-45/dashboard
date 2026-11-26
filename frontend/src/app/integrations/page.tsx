@@ -40,7 +40,7 @@ import {
 interface AppConnector {
   id: string;
   name: string;
-  provider: "shopify" | "razorpay" | "shiprocket" | "meta_ads" | "instagram";
+  provider: "shopify" | "razorpay" | "delhivery" | "meta_ads" | "instagram";
   category: "Store & Catalog" | "Payments" | "Logistics" | "Marketing" | "Social";
   status: "connected" | "disconnected" | "syncing" | "token_expiring" | "error";
   account_identifier: string;
@@ -87,7 +87,7 @@ const DEFAULT_APPS: AppConnector[] = [
   {
     id: "delhivery",
     name: "Delhivery Logistics",
-    provider: "shiprocket",
+    provider: "delhivery",
     category: "Logistics",
     status: "disconnected",
     account_identifier: "",
@@ -429,7 +429,7 @@ export default function ConnectAppsPage() {
         return <ShopifyLogo className={size} />;
       case "razorpay":
         return <RazorpayLogo className={size} />;
-      case "shiprocket":
+      case "delhivery":
         return <DelhiveryLogo className={size} />;
       case "meta_ads":
         return <MetaAdsLogo className={size} />;

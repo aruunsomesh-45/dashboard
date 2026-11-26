@@ -73,6 +73,9 @@ export function createHandler(deps: Deps) {
       case "instagram":
         result = await testInstagram(deps, credentials, identifier, started);
         break;
+      case "delhivery":
+        result = await testDelhivery(deps, credentials, started);
+        break;
       default:
         throw new HttpError(400, `Unsupported integration provider: ${provider}`);
     }
@@ -198,6 +201,29 @@ async function testMetaAds(deps: Deps, creds: Creds, identifier: string, started
     records_fetched: 1,
     error_message: null,
     account_info: { identifier: json.id || adAccountId, name: json.name },
+  };
+}
+
+/** Delhivery: a tracking call for a waybill that cannot exist. 401/403 = bad token; any other answer = token accepted. */
+async function testDelhivery(deps: Deps, creds: Creds, started: number): Promise<ConnectionTestResult> {
+  const token = String(creds.api_token || "").trim();
+  if (!token) return failed("delhivery", started, 400, "Delhivery API token is required.");
+  const p = await probe(deps, "delhivery", started, "https://track.delhivery.com/api/v1/packages/json/?waybill=CONNTEST0000", { Authorization: `Token ${token}` });
+  if (p.error) return p.error;
+  const { res } = p;
+  if (res.status === 401 || res.status === 403) {
+    return failed("delhivery", started, res.status, `Delhivery rejected the API token (${res.status}).`);
+  }
+  if (!res.ok) return failed("delhivery", started, res.status, `Delhivery tracking API responded with status ${res.status}`);
+  return {
+    integration_name: "delhivery",
+    connection_status: "connected",
+    http_status: res.status,
+    response_time: Date.now() - started,
+    last_tested_at: new Date().toISOString(),
+    records_fetched: 0,
+    error_message: null,
+    account_info: { identifier: String(creds.client_id || "") },
   };
 }
 
