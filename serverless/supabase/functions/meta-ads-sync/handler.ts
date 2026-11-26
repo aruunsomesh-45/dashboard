@@ -6,10 +6,58 @@ import { fetchWithRetry, safeJson } from "../_shared/upstream.ts";
 import { wrapHandler } from "../_shared/handler.ts";
 import type { Deps } from "../_shared/deps.ts";
 import { finishSyncRun, loadIntegration, newCounts, setIntegrationStatus, startSyncRun } from "../_shared/integrations.ts";
-import { classifyMetaError, mapMetaInsightDay, normalizeMetaAdAccountId } from "../_shared/mappers.ts";
+import { classifyMetaError, mapMetaAdInsightDay, mapMetaInsightDay, normalizeMetaAdAccountId } from "../_shared/mappers.ts";
 
 export const META_GRAPH_VERSION = "v21.0";
 const GRAPH_HOST = "graph.facebook.com";
+/** Fields for the ad-level daily insights (one row per ad per day, with its campaign, ad set and ad names). */
+export const META_AD_FIELDS =
+  "date_start,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,reach,clicks,cpm,cpc,ctr,actions,action_values";
+
+/** The next page of a Graph response, only if it stays on the Graph host (the token is never sent elsewhere). */
+export function nextGraphPage(json: any): string | null {
+  const next = json?.paging?.next;
+  if (typeof next !== "string") return null;
+  try {
+    const u = new URL(next);
+    return u.protocol === "https:" && u.host === GRAPH_HOST ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Campaign id -> status (lower case: "active", "paused", ...). Uses effective_status, because the status
+ * of an ad's campaign is not part of the insights response. A failure here is not fatal: the rows are
+ * saved without a status and the next run fills it in.
+ */
+export async function fetchCampaignStatuses(
+  deps: Pick<Deps, "fetch" | "sleep">,
+  adAccountId: string,
+  token: string,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const params = new URLSearchParams({ fields: "id,name,effective_status", limit: "200", access_token: token });
+  let url: string | null = `https://${GRAPH_HOST}/${META_GRAPH_VERSION}/${adAccountId}/campaigns?${params}`;
+  for (let page = 0; url && page < 20; page++) {
+    try {
+      const res = await fetchWithRetry(deps.fetch, url, { headers: { Accept: "application/json" } }, { sleep: deps.sleep });
+      const json = await safeJson(res);
+      if (!res.ok || !Array.isArray(json?.data)) {
+        logger.warn("Meta campaign list not read", { status: res.status });
+        break;
+      }
+      for (const c of json.data) {
+        if (c?.id) out.set(String(c.id), String(c.effective_status ?? "unknown").toLowerCase());
+      }
+      url = nextGraphPage(json);
+    } catch (e) {
+      logger.warn("Meta campaign list failed", { error: (e as Error).message });
+      break;
+    }
+  }
+  return out;
+}
 
 export function createHandler(deps: Deps) {
   return wrapHandler("meta-ads-sync", async (req) => {
@@ -52,6 +100,7 @@ export function createHandler(deps: Deps) {
 
     const runId = await startSyncRun(admin, integ, "ads_insights", caller.kind === "cron" ? "cron" : "manual");
     const counts = newCounts();
+    const adCounts = { processed: 0, saved: 0, failed: 0 };
     let pages = 0;
 
     try {
@@ -102,6 +151,54 @@ export function createHandler(deps: Deps) {
           } catch { /* ignore malformed cursor */ }
         }
       }
+
+      // Campaign level: one row per ad per day, tagged with its campaign's status.
+      const statusById = await fetchCampaignStatuses(deps, adAccountId, token);
+      const adParams = new URLSearchParams({
+        level: "ad",
+        time_increment: "1",
+        time_range: JSON.stringify({ since, until }),
+        fields: META_AD_FIELDS,
+        limit: "100",
+        access_token: token,
+      });
+      let adUrl: string | null = `https://${GRAPH_HOST}/${META_GRAPH_VERSION}/${adAccountId}/insights?${adParams}`;
+      let adPages = 0;
+      while (adUrl && adPages < maxPages) {
+        adPages++;
+        const res = await fetchWithRetry(deps.fetch, adUrl, { headers: { Accept: "application/json" } }, { sleep: deps.sleep });
+        const json = await safeJson(res);
+        if (!res.ok || json?.error) {
+          const err = classifyMetaError(json);
+          if (err.kind === "token_invalid") {
+            await setIntegrationStatus(admin, integ.id, "error", `Meta access token is invalid or expired: ${err.message}`);
+          }
+          throw new HttpError(502, `Meta ad-level insights error (${err.kind}): ${err.message}`, {
+            upstream_status: res.status,
+            meta_error_kind: err.kind,
+            meta_error_code: err.code ?? null,
+          });
+        }
+        if (!json || !Array.isArray(json.data)) throw new HttpError(502, "Meta returned an unexpected ad-level insights payload");
+        for (const item of json.data) {
+          adCounts.processed++;
+          try {
+            const row = {
+              ...mapMetaAdInsightDay(item, ctx, { adAccountId, currency: String(integ.credentials.currency || "INR") }),
+              campaign_status: statusById.get(String(item?.campaign_id ?? "")) ?? null,
+            };
+            const { error } = await admin
+              .from("analytics_meta_ad_daily")
+              .upsert(row, { onConflict: "brand_id,ad_id,report_date,attribution_setting" });
+            if (error) throw new Error(error.message);
+            adCounts.saved++;
+          } catch (e) {
+            adCounts.failed++;
+            logger.warn("Meta ad-level row not persisted", { ad_id: String(item?.ad_id ?? ""), error: (e as Error).message });
+          }
+        }
+        adUrl = nextGraphPage(json);
+      }
     } catch (e) {
       await finishSyncRun(admin, runId, "failed", counts, (e as Error).message);
       throw e;
@@ -121,6 +218,9 @@ export function createHandler(deps: Deps) {
       records_created: counts.created,
       records_updated: counts.updated,
       records_failed: counts.failed,
+      ad_rows_processed: adCounts.processed,
+      ad_rows_saved: adCounts.saved,
+      ad_rows_failed: adCounts.failed,
       pages_fetched: pages,
       has_more: Boolean(nextUrl),
       last_synced_at: new Date().toISOString(),

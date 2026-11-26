@@ -194,6 +194,8 @@ Deno.test({ ...opts, name: "Meta Ads sync", fn: async (t) => {
     w.http.on(/graph\.facebook\.com\/v21\.0\/act_1234567890\/insights\?level=account/, () =>
       json({ data: [metaInsightDay("2026-11-01"), metaInsightDay("2026-11-02")], paging: { next: "https://graph.facebook.com/v21.0/act_1234567890/insights?after=CUR2" } }));
     w.http.on(/after=CUR2/, () => json({ data: [metaInsightDay("2026-11-03", { spend: "0", actions: [] })], paging: {} }));
+    w.http.on(/\/campaigns\?/, () => json({ data: [] }));
+    w.http.on(/insights\?level=ad/, () => json({ data: [] }));
     const r = await call(h(), "meta-ads-sync", { token: A.token, body: body(A) });
     assertEquals(r.status, 200, JSON.stringify(r.body));
     assertEquals([r.body.data.records_processed, r.body.data.records_created, r.body.data.pages_fetched], [3, 3, 2]);
@@ -235,9 +237,12 @@ Deno.test({ ...opts, name: "Meta Ads sync", fn: async (t) => {
   await t.step("paging.next on a foreign host is ignored (token is in the query string)", async () => {
     w.http.routes = [];
     w.http.calls = [];
-    w.http.on(/insights/, () => json({ data: [], paging: { next: "https://evil.example/collect?access_token=x" } }));
+    w.http.on(/insights\?level=account/, () => json({ data: [], paging: { next: "https://evil.example/collect?access_token=x" } }));
+    w.http.on(/\/campaigns\?/, () => json({ data: [] }));
+    w.http.on(/insights\?level=ad/, () => json({ data: [] }));
     const r = await call(h(), "meta-ads-sync", { token: A.token, body: body(A) });
-    assertEquals([r.status, w.http.calls.length], [200, 1]);
+    assertEquals(r.status, 200);
+    assertEquals(w.http.calls.filter((c) => c.url.includes("evil.example")).length, 0, "the token must never be sent to a foreign host");
   });
 
   await w.close();

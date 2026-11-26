@@ -483,6 +483,56 @@ function summarizeAds(rows: any[]) {
   };
 }
 
+/**
+ * Campaign totals for the last 30 days, grouped from the ad-level daily rows that meta-ads-sync stores.
+ * Ratios are null when their denominator is zero (never shown as 0).
+ */
+async function metaCampaigns(admin: SupabaseClient, brandId: string, cutoff: string) {
+  const rows = await fetchAll<any>((from, to) =>
+    admin
+      .from("analytics_meta_ad_daily")
+      .select("campaign_id, campaign_name, campaign_status, report_date, spend_minor, impressions, clicks, purchases, purchase_value_minor")
+      .eq("brand_id", brandId)
+      .gte("report_date", cutoff)
+      .range(from, to),
+  );
+  const byCampaign = new Map<string, any>();
+  for (const r of rows) {
+    if (!r.campaign_id) continue; // an ad that is not linked to a campaign is not a campaign
+    const id = String(r.campaign_id);
+    const c = byCampaign.get(id) ?? { id, name: "", status: "unknown", latest: "", spend: 0, impressions: 0, clicks: 0, orders: 0, revenue: 0 };
+    c.spend += Number(r.spend_minor) || 0;
+    c.impressions += Number(r.impressions) || 0;
+    c.clicks += Number(r.clicks) || 0;
+    c.orders += Number(r.purchases) || 0;
+    c.revenue += Number(r.purchase_value_minor) || 0;
+    // The name and status come from the most recent day that has them.
+    if (String(r.report_date) >= c.latest) {
+      c.latest = String(r.report_date);
+      c.name = r.campaign_name || c.name;
+      c.status = r.campaign_status || c.status;
+    }
+    byCampaign.set(id, c);
+  }
+  const ratio = (n: number, d: number, digits: number) => (d > 0 ? Math.round((n / d) * 10 ** digits) / 10 ** digits : null);
+  return Array.from(byCampaign.values())
+    .sort((a, b) => b.spend - a.spend)
+    .map((c) => ({
+      id: c.id,
+      name: c.name || c.id,
+      status: c.status === "active" ? "active" : "paused",
+      effective_status: c.status,
+      spend_minor: c.spend,
+      impressions: c.impressions,
+      clicks: c.clicks,
+      ctr: ratio(c.clicks * 100, c.impressions, 2),
+      cpc_minor: ratio(c.spend, c.clicks, 0),
+      roas: ratio(c.revenue, c.spend, 2),
+      orders: c.orders,
+      attributed_revenue_minor: c.revenue,
+    }));
+}
+
 async function marketingStats(admin: SupabaseClient, tenant: TenantContext) {
   const brandId = tenant.brand!.id;
   const integ = await integrationStatus(admin, brandId, "meta_ads");
@@ -505,7 +555,7 @@ async function marketingStats(admin: SupabaseClient, tenant: TenantContext) {
     error: integ.status === "error" ? integ.last_error_message || "Last sync failed" : undefined,
     summary_30d: summarizeAds(last30),
     summary_lifetime: summarizeAds(rows),
-    campaigns: [], // campaign-level rows are not persisted by meta-ads-sync (daily account facts only)
+    campaigns: await metaCampaigns(admin, brandId, cutoff),
     daily_trends: last30.map((r) => ({
       date: r.fact_date,
       spend_minor: r.spend_minor,
