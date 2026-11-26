@@ -196,11 +196,11 @@
         <thead><tr><th>Field on the card</th><th>Looks like</th><th>Required?</th><th>What it is</th></tr></thead>
         <tbody>
           <tr><td><strong>Shopify Store Domain</strong></td><td><code>your-store.myshopify.com</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Your store's web address. Copy it from the top of your Shopify admin page, or from the address bar.</td></tr>
-          <tr><td><strong>Admin API Access Token</strong></td><td><code>shpat_…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>The password that lets the dashboard read your store. Shown once when you install the app.</td></tr>
-          <tr><td><strong>Webhook HMAC Secret</strong></td><td><code>shpss_…</code></td><td><span class="badge-pill badge-opt">Optional</span></td><td>Lets the dashboard check that new orders really came from Shopify. Found on the same page as the token. Its name in Shopify is "API secret key".</td></tr>
+          <tr><td><strong>Client ID</strong></td><td><code>37d99…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Identifies your app. Shown on the app's Settings page in the Shopify Dev Dashboard.</td></tr>
+          <tr><td><strong>Client Secret</strong></td><td><code>shpss_…</code></td><td><span class="badge-pill badge-req">Required</span></td><td>Lets the dashboard request a fresh access token automatically, and checks that webhooks really come from Shopify. Use the <strong>New</strong> row on the Settings page.</td></tr>
         </tbody>
       </table>
-      <div class="alert alert-warning"><strong>Common mistake:</strong> the <code>shpss_</code> key goes in the secret box. The <code>shpat_</code> token goes in the token box. Putting them the wrong way round gives a "401 Unauthorized" error.</div>
+      <div class="alert alert-info"><strong>Good news:</strong> you don't copy an access token. The dashboard gets a fresh one from your Client ID and Client Secret every time it syncs, so nothing expires by hand.</div>
 
       <h3>Step A: create the key in Shopify</h3>
       <ol class="steps">
@@ -226,7 +226,7 @@
         </li>
         <li class="step-item">
           <div class="step-title">Install and copy the token</div>
-          <div class="step-desc">Click the <strong>API credentials</strong> tab, then <strong>Install app</strong>. Under <strong>Admin API access token</strong>, click <strong>Reveal token once</strong>. Copy the <code>shpat_</code> token and save it in Notepad. Copy the <strong>API secret key</strong> (<code>shpss_</code>) too.</div>
+          <div class="step-desc">Make sure the app is installed on your store. Then open the app's <strong>Settings</strong> page. Copy the <strong>Client ID</strong>. Click the eye icon on the <strong>Client secret</strong> row marked <strong>New</strong>, and copy it. Save both in Notepad.</div>
         </li>
       </ol>
 
@@ -238,7 +238,7 @@
         </li>
         <li class="step-item">
           <div class="step-title">Paste the three values</div>
-          <div class="step-desc">Store Domain → <code>your-store.myshopify.com</code>. Access Token → <code>shpat_…</code>. Webhook Secret → <code>shpss_…</code>.</div>
+          <div class="step-desc">Store Domain → <code>your-store.myshopify.com</code>. Client ID → the Client ID. Client Secret → the <code>shpss_…</code> secret.</div>
         </li>
         <li class="step-item">
           <div class="step-title">Save</div>
@@ -512,7 +512,7 @@
       <table class="param-table">
         <thead><tr><th>Message on the card</th><th>What it means</th><th>What to do</th></tr></thead>
         <tbody>
-          <tr><td>"Shopify rejected the Admin API token (401)"</td><td>The <code>shpat_</code> token is wrong, or the app was removed.</td><td>Reveal the token again in Shopify and save it.</td></tr>
+          <tr><td>"Shopify rejected the Client ID or Client secret (401)"</td><td>One of the two values is wrong, or the app isn't installed on the store.</td><td>Copy both values again from the app's Settings page, and check the app is installed.</td></tr>
           <tr><td>"Session has expired"</td><td>The Meta token has run out.</td><td>Make a system user token set to Never expire (Meta Ads tab).</td></tr>
           <tr><td>"Razorpay rejected the API key/secret"</td><td>Key ID and Key Secret don't match, or the key was deleted.</td><td>Generate a new key pair in Razorpay and save both values.</td></tr>
           <tr><td>"Delhivery rejected the API token"</td><td>The token is wrong, or a newer token replaced it.</td><td>Copy the current token from Delhivery One → Settings → API Setup.</td></tr>
@@ -534,7 +534,7 @@
       <h2>✅ Checklist: tick each one as you finish</h2>
       <ul class="checklist">
         <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> I can sign in at <code>125east.vercel.app/login</code></li>
-        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Shopify: created the app, copied the <code>shpat_</code> token and the <code>shpss_</code> secret, saved both, and tested <strong>Connected</strong></li>
+        <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Shopify: created the app, copied the Client ID and the <code>shpss_</code> Client Secret, saved both, and tested <strong>Connected</strong></li>
         <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Shopify: webhook created with the URL from the dashboard Settings page</li>
         <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Razorpay: generated the key, copied the Key ID and Key Secret, saved, and tested <strong>Connected</strong></li>
         <li class="check-item" onclick="toggleCheck(this)"><input type="checkbox"> Razorpay: webhook created with the same secret I saved in the dashboard</li>

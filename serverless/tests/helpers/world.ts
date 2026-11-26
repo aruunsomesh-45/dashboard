@@ -20,7 +20,7 @@ export interface Tenant {
   brand_id: string;
 }
 
-export interface FetchCall { url: string; method: string; headers: Headers }
+export interface FetchCall { url: string; method: string; headers: Headers; body?: string }
 export type Route = { match: RegExp; respond: (url: string, call: number) => Response | Promise<Response> };
 
 /** fetch double: answers only scripted routes, records every call, throws on anything else. */
@@ -35,7 +35,8 @@ export class ScriptedFetch {
   fetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const headers = new Headers(init?.headers);
-    this.calls.push({ url, method: init?.method ?? "GET", headers });
+    const body = typeof init?.body === "string" ? init.body : undefined;
+    this.calls.push({ url, method: init?.method ?? "GET", headers, body });
     if (init?.signal?.aborted) throw new DOMException("aborted", "AbortError");
     for (const r of this.routes) {
       if (r.match.test(url)) {

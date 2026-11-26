@@ -16,6 +16,7 @@ import {
   startSyncRun,
 } from "../_shared/integrations.ts";
 import { extractShopifyNextPageUrl, normalizeShopDomain } from "../_shared/mappers.ts";
+import { exchangeShopifyToken } from "../_shared/shopify_auth.ts";
 import { processShopifyOrder } from "../_shared/pipeline.ts";
 
 export const SHOPIFY_API_VERSION = "2024-10";
@@ -36,10 +37,24 @@ export function createHandler(deps: Deps) {
     const admin = deps.adminClient();
     const integ = await loadIntegration(admin, workspaceId, brandId, "shopify");
     const shopDomain = normalizeShopDomain(integ.credentials.shop_domain || integ.credentials.shop_url || integ.account_identifier);
-    const token = String(integ.credentials.access_token || "").trim();
-    if (!token) throw new HttpError(400, "Shopify Admin API access token is missing.");
-    if (token.startsWith("shpss_")) {
-      throw new HttpError(400, "Stored token is the API secret key (shpss_...), not an Admin API access token (shpat_...).");
+    // Preferred: exchange the Client ID and Client secret for a fresh token (renewed on every run).
+    // Legacy: a stored Admin API access token (shpat_...), used only when no Client ID is saved.
+    const clientId = String(integ.credentials.client_id || "").trim();
+    const clientSecret = String(integ.credentials.client_secret || "").trim();
+    let token: string;
+    if (clientId && clientSecret) {
+      try {
+        token = await exchangeShopifyToken(deps, shopDomain, clientId, clientSecret);
+      } catch (e) {
+        await setIntegrationStatus(admin, integ.id, "error", (e as Error).message);
+        throw e;
+      }
+    } else {
+      token = String(integ.credentials.access_token || "").trim();
+      if (!token) throw new HttpError(400, "Enter the Shopify Client ID and Client secret on the Shopify card.");
+      if (token.startsWith("shpss_")) {
+        throw new HttpError(400, "Stored token is the API secret key (shpss_...), not an Admin API access token (shpat_...).");
+      }
     }
 
     const ctx = { workspace_id: workspaceId, brand_id: brandId };

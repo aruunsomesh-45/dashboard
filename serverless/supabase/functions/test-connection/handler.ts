@@ -7,6 +7,7 @@ import { fetchWithRetry, safeJson, UpstreamError } from "../_shared/upstream.ts"
 import { wrapHandler } from "../_shared/handler.ts";
 import type { Deps } from "../_shared/deps.ts";
 import { classifyMetaError, normalizeMetaAdAccountId, normalizeShopDomain } from "../_shared/mappers.ts";
+import { exchangeShopifyToken } from "../_shared/shopify_auth.ts";
 
 export interface ConnectionTestResult {
   integration_name: string;
@@ -118,14 +119,23 @@ async function probe(deps: Deps, name: string, started: number, url: string, hea
 }
 
 async function testShopify(deps: Deps, creds: Creds, identifier: string, started: number): Promise<ConnectionTestResult> {
-  const token = String(creds.access_token || "").trim();
   let shop: string;
   try {
     shop = normalizeShopDomain(creds.shop_domain || creds.shop_url || identifier);
   } catch (e) {
     return failed("shopify", started, 400, (e as Error).message);
   }
-  if (!token) return failed("shopify", started, 400, "Shop domain and Admin API Access Token (shpat_...) are required.");
+  const clientId = String(creds.client_id || "").trim();
+  const clientSecret = String(creds.client_secret || "").trim();
+  let token = String(creds.access_token || "").trim();
+  if (clientId && clientSecret) {
+    try {
+      token = await exchangeShopifyToken(deps, shop, clientId, clientSecret);
+    } catch (e) {
+      return failed("shopify", started, (e as { status?: number }).status ?? 502, (e as Error).message);
+    }
+  }
+  if (!token) return failed("shopify", started, 400, "Shop domain and Client ID / Client secret are required.");
   if (token.startsWith("shpss_")) {
     return failed("shopify", started, 400, "You entered the API Secret Key (shpss_...). Please enter the Admin API Access Token (shpat_...).");
   }

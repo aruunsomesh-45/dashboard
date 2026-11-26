@@ -63,9 +63,9 @@ const DEFAULT_APPS: AppConnector[] = [
     auth_type: "OAuth 2.0",
     description: "Sync orders, products, inventory, customers, discounts, and fulfillment updates via verified HMAC webhooks.",
     fields: [
-      { label: "Shopify Store Domain", placeholder: "your-brand.myshopify.com", key: "shop_domain" },
-      { label: "Admin API Access Token", placeholder: "shpat_xxxxxxxxxxxxxxxx", key: "access_token", type: "password" },
-      { label: "Webhook HMAC Secret", placeholder: "shpss_xxxxxxxxxxxxxxx", key: "webhook_secret", type: "password" },
+      { label: "Shopify Store Domain", placeholder: "your-store.myshopify.com", key: "shop_domain" },
+      { label: "Client ID", placeholder: "From Dev Dashboard → your app → Settings", key: "client_id" },
+      { label: "Client Secret", placeholder: "From Dev Dashboard → your app → Settings (the New row)", key: "client_secret", type: "password" },
     ],
   },
   {
