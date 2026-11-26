@@ -265,6 +265,18 @@ async function createInvite(admin: SupabaseClient, s: SessionContext, wsSlug: st
   if (!["owner", "admin", "analyst", "viewer"].includes(role)) throw new RouteError(400, "Invalid role");
   if (role === "owner" && tenant.role !== "owner") throw new RouteError(403, "Only an owner can invite another owner");
 
+  // Plan member limit: current members plus pending (unaccepted, unexpired) invites.
+  const { data: sub } = await admin.from("billing_subscription").select("max_members, plan").eq("workspace_id", tenant.workspaceId).maybeSingle();
+  const maxMembers = Number(sub?.max_members ?? 3);
+  const [{ count: members }, { count: pending }] = await Promise.all([
+    admin.from("tenancy_workspacemember").select("id", { count: "exact", head: true }).eq("workspace_id", tenant.workspaceId),
+    admin.from("tenancy_invite").select("id", { count: "exact", head: true }).eq("workspace_id", tenant.workspaceId)
+      .is("accepted_at", null).gt("expires_at", new Date().toISOString()),
+  ]);
+  if ((members ?? 0) + (pending ?? 0) >= maxMembers) {
+    throw new RouteError(409, `Your ${sub?.plan ?? "starter"} plan allows ${maxMembers} members. Remove a member or cancel a pending invite to continue.`);
+  }
+
   const { data: existing } = await admin.from("accounts_user").select("id").eq("email", email).maybeSingle();
   if (existing) {
     const { data: member } = await admin

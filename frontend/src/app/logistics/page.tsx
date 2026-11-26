@@ -51,6 +51,8 @@ export default function LogisticsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [awbText, setAwbText] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   const base = currentWorkspace && currentBrand ? `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/logistics` : null;
 
@@ -106,12 +108,65 @@ export default function LogisticsPage() {
     const q = search.toLowerCase();
     return (!q || s.awb.toLowerCase().includes(q)) && (statusFilter === "all" || s.status === statusFilter);
   });
+  // Waybills typed by the user (one per line or comma-separated). The sync also refreshes open shipments on its own.
+  const parseAwbs = (text: string) =>
+    Array.from(new Set(text.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean)));
+
+  const runDelhiverySync = async () => {
+    if (!base) return;
+    const awbs = parseAwbs(awbText);
+    const brandBase = base.replace(/\/logistics$/, "");
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const res = await apiFetch<{ message?: string; records_created?: number; records_updated?: number; records_not_found?: number }>(
+        `${brandBase}/logistics/sync-now`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ awbs }) },
+      );
+      setNotice({ kind: "ok", text: res.message || "Delhivery sync finished." });
+      setAwbText("");
+      await load();
+    } catch (err: any) {
+      setNotice({ kind: "error", text: err?.message || "Delhivery sync failed." });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const deliveredPct = summary && summary.total_shipments ? Math.round((summary.delivered_count * 1000) / summary.total_shipments) / 10 : null;
 
   return (
     <DashboardShell>
       <ModuleGuard moduleKey="delivery" moduleName="Logistics & Delivery">
         <div className="space-y-6 font-sans">
+        <div className="bg-white rounded-xl border border-ivory-300 shadow-sm p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-charcoal-900">Sync Delhivery shipments</h2>
+            <p className="text-xs text-charcoal-500">
+              Enter waybill (AWB) numbers, one per line or comma-separated. Open shipments are refreshed automatically; use this to add new ones.
+            </p>
+          </div>
+          <textarea
+            value={awbText}
+            onChange={(e) => setAwbText(e.target.value)}
+            rows={3}
+            placeholder="e.g. 1234567890, 1234567891"
+            aria-label="Delhivery waybill numbers"
+            className="w-full font-mono text-xs border border-ivory-300 rounded-lg px-3 py-2 bg-white"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-charcoal-500">{parseAwbs(awbText).length} waybill(s) entered (max 300)</span>
+            <button
+              type="button"
+              onClick={runDelhiverySync}
+              disabled={syncing || !base || parseAwbs(awbText).length > 300}
+              className="px-4 py-2 rounded-lg bg-charcoal-900 text-white text-xs font-semibold disabled:opacity-50"
+            >
+              {syncing ? "Syncing…" : "Sync shipments"}
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-ivory-300">
           <div className="flex items-center space-x-2.5">
             <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center p-1.5 flex-shrink-0">

@@ -168,13 +168,10 @@ export default function SettingsPage() {
     }
   };
 
-  const deployedHost = process.env.NEXT_PUBLIC_SITE_URL || "https://125east.vercel.app";
-  const webhookBase =
-    typeof window !== "undefined" &&
-    !window.location.hostname.includes("localhost") &&
-    !window.location.hostname.includes("127.0.0.1")
-      ? window.location.origin
-      : deployedHost;
+  // The webhook receivers are the Supabase Edge Functions; they take the brand as ?brand_id=.
+  const functionsBase = (process.env.NEXT_PUBLIC_FUNCTIONS_URL || "").trim().replace(/\/+$/, "");
+  const shopifyWebhookUrl = currentBrand?.id ? `${functionsBase}/webhook-shopify?brand_id=${currentBrand.id}` : "";
+  const razorpayWebhookUrl = currentBrand?.id ? `${functionsBase}/webhook-razorpay?brand_id=${currentBrand.id}` : "";
 
   const isEnabled = mfaStatus?.is_enabled ?? !!user?.mfa_enabled;
 
@@ -353,11 +350,11 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   readOnly
-                  value={`${webhookBase}/api/webhooks/shopify/${currentBrand?.id}/`}
+                  value={shopifyWebhookUrl}
                   className="w-full font-mono text-[11px] bg-white border border-ivory-300 rounded px-3 py-1.5 text-charcoal-700"
                 />
                 <button
-                  onClick={() => copyToClipboard(`${webhookBase}/api/webhooks/shopify/${currentBrand?.id}/`, "shopify")}
+                  onClick={() => copyToClipboard(shopifyWebhookUrl, "shopify")}
                   className="px-3 py-1.5 text-xs bg-forest-900 text-ivory-100 rounded hover:bg-forest-800 transition-colors flex-shrink-0"
                 >
                   {copied === "shopify" ? "Copied!" : "Copy"}
@@ -375,11 +372,11 @@ export default function SettingsPage() {
                 <input
                   type="text"
                   readOnly
-                  value={`${webhookBase}/api/webhooks/razorpay/${currentBrand?.id}/`}
+                  value={razorpayWebhookUrl}
                   className="w-full font-mono text-[11px] bg-white border border-ivory-300 rounded px-3 py-1.5 text-charcoal-700"
                 />
                 <button
-                  onClick={() => copyToClipboard(`${webhookBase}/api/webhooks/razorpay/${currentBrand?.id}/`, "razorpay")}
+                  onClick={() => copyToClipboard(razorpayWebhookUrl, "razorpay")}
                   className="px-3 py-1.5 text-xs bg-forest-900 text-ivory-100 rounded hover:bg-forest-800 transition-colors flex-shrink-0"
                 >
                   {copied === "razorpay" ? "Copied!" : "Copy"}

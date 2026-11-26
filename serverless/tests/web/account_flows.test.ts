@@ -259,6 +259,12 @@ Deno.test({ ...opts, name: "Account flows", fn: async (t) => {
     await w.addMember(A.workspace_id, C.user.id, "admin");
     const cj = (await signIn(C.user.email, C.password)).jar;
     assertEquals((await hit(api, `/api/w/${A.slug}/invites/`, { method: "POST", cookies: cj, body: { email: "z@example.test", role: "owner" } })).status, 403);
+    // Starter plan: 3 members in total. This workspace already has more, so the plan limit now refuses the invite.
+    const capped = await hit(api, `/api/w/${A.slug}/invites/`, { method: "POST", cookies: cj, body: { email: "z@example.test", role: "admin" } });
+    assertEquals(capped.status, 409, JSON.stringify(capped.body));
+    assert(String(capped.body.error).includes("allows 3 members"), capped.body.error);
+    // On a larger plan the same invite succeeds.
+    await w.db.query("UPDATE public.billing_subscription SET max_members = 10 WHERE workspace_id = $1", [A.workspace_id]);
     assertEquals((await hit(api, `/api/w/${A.slug}/invites/`, { method: "POST", cookies: cj, body: { email: "z@example.test", role: "admin" } })).status, 200);
   });
 

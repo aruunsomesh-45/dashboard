@@ -653,7 +653,7 @@ export default function ConnectAppsPage() {
             <div className="text-xs space-y-0.5">
               <div className="font-bold text-white text-sm">Serverless AES-256-GCM Envelope Encryption</div>
               <p className="text-ivory-300 leading-relaxed">
-                Tokens and webhook secrets are encrypted with per-brand Data Encryption Keys before being stored in PostgreSQL. Edge Functions process calls with Row-Level Security (RLS).
+                Tokens and webhook secrets are encrypted with AES-256-GCM before they are stored in PostgreSQL. Only the server can read them; the sync functions decrypt them when they run.
               </p>
             </div>
           </div>

@@ -14,6 +14,7 @@ import { createHandler as razorpaySync } from "../../supabase/functions/razorpay
 import { createHandler as metaSync } from "../../supabase/functions/meta-ads-sync/handler.ts";
 import { createHandler as igSync } from "../../supabase/functions/instagram-sync/handler.ts";
 import { createHandler as testConn } from "../../supabase/functions/test-connection/handler.ts";
+import { createHandler as delhiverySync } from "../../supabase/functions/delhivery-sync/handler.ts";
 
 export const SUPABASE_URL = "http://fake-supabase.test";
 export const FUNCTIONS_URL = "http://fake-supabase.test/functions/v1";
@@ -187,7 +188,7 @@ export class WebWorld {
       const fn = p.split("/").pop()!;
       const body = await req.clone().json().catch(() => null);
       this.edgeCalls.push({ fn, auth: req.headers.get("Authorization"), body });
-      const make = { "shopify-sync": shopifySync, "razorpay-sync": razorpaySync, "meta-ads-sync": metaSync, "instagram-sync": igSync, "test-connection": testConn }[fn];
+      const make = { "shopify-sync": shopifySync, "razorpay-sync": razorpaySync, "meta-ads-sync": metaSync, "instagram-sync": igSync, "test-connection": testConn, "delhivery-sync": delhiverySync }[fn];
       if (!make) return this.json({ success: false, error: "function not found" }, 404);
       // The Edge Function's own user client sees GoTrue's view of the token (incl. factors).
       const deps = this.w.deps();

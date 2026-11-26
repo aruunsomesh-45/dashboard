@@ -120,9 +120,13 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
         return respond(await disconnectIntegration(admin, tenant, req));
       }
       if (method === "POST" && SYNC_FUNCTIONS[action]) {
+        // Optional body: waybill numbers for the Delhivery sync (other syncs send no body).
+        const extra = await req.json().catch(() => ({} as Record<string, unknown>));
+        const awbs = Array.isArray(extra?.awbs) ? extra.awbs : undefined;
         const res = await forwardToEdgeFunction(SYNC_FUNCTIONS[action], session, {
           workspace_id: tenant.workspaceId,
           brand_id: tenant.brand!.id,
+          ...(awbs ? { awbs } : {}),
         });
         return withSessionCookies(res, session);
       }
