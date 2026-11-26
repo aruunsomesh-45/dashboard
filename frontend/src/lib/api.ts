@@ -131,7 +131,14 @@ export async function apiFetchWithStatus<T>(
 
   if (!response.ok) {
     let errorDetail = "";
-    if (response.status >= 500 && !isExternal) {
+    const serverMessage =
+      responseData && typeof responseData === "object" && typeof (responseData as any).error === "string"
+        ? String((responseData as any).error)
+        : "";
+    if (response.status >= 500 && !isExternal && serverMessage) {
+      // The server explained what went wrong (for example an expired Meta token): show that, not a generic message.
+      errorDetail = serverMessage;
+    } else if (response.status >= 500 && !isExternal) {
       errorDetail = "Backend server is temporarily unavailable. Please verify the service is running.";
     } else if (responseData && typeof responseData === "object") {
       const rawError =
