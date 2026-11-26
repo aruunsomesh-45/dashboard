@@ -127,6 +127,8 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
           workspace_id: tenant.workspaceId,
           brand_id: tenant.brand!.id,
           ...(awbs ? { awbs } : {}),
+          // A manual Meta sync refreshes a full year, so the all-time view has real history.
+          ...(action === "marketing/sync-now" ? { days: 365 } : {}),
         });
         return withSessionCookies(res, session);
       }
@@ -487,13 +489,13 @@ function summarizeAds(rows: any[]) {
  * Campaign totals for the last 30 days, grouped from the ad-level daily rows that meta-ads-sync stores.
  * Ratios are null when their denominator is zero (never shown as 0).
  */
-async function metaCampaigns(admin: SupabaseClient, brandId: string, cutoff: string) {
+async function metaCampaigns(admin: SupabaseClient, brandId: string, cutoff: string | null) {
   const rows = await fetchAll<any>((from, to) =>
     admin
       .from("analytics_meta_ad_daily")
       .select("campaign_id, campaign_name, campaign_status, report_date, spend_minor, impressions, clicks, purchases, purchase_value_minor")
       .eq("brand_id", brandId)
-      .gte("report_date", cutoff)
+      .gte("report_date", cutoff ?? "1900-01-01")
       .range(from, to),
   );
   const byCampaign = new Map<string, any>();
@@ -556,6 +558,7 @@ async function marketingStats(admin: SupabaseClient, tenant: TenantContext) {
     summary_30d: summarizeAds(last30),
     summary_lifetime: summarizeAds(rows),
     campaigns: await metaCampaigns(admin, brandId, cutoff),
+    campaigns_lifetime: await metaCampaigns(admin, brandId, null),
     daily_trends: last30.map((r) => ({
       date: r.fact_date,
       spend_minor: r.spend_minor,

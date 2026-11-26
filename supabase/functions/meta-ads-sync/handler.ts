@@ -66,7 +66,8 @@ export function createHandler(deps: Deps) {
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
     const days = clampInt(body.days, 30, 1, 365);
-    const maxPages = clampInt(body.max_pages, 10, 1, 50);
+    // A year of ad-level rows needs many pages; a 30-day window keeps the scheduled run short.
+    const maxPages = clampInt(body.max_pages, days > 30 ? 80 : 10, 1, 100);
 
     await authorizeSyncScope(caller, workspaceId, brandId, "meta_ads");
 

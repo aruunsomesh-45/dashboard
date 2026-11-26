@@ -60,6 +60,7 @@ interface MetaStatsResponse {
   summary_30d?: MetaSummary;
   summary_lifetime?: MetaSummary;
   campaigns?: Campaign[];
+  campaigns_lifetime?: Campaign[];
   daily_trends?: Array<{
     date: string;
     spend_minor: number;
@@ -138,6 +139,8 @@ export default function MarketingPage() {
 
   const activeSummary =
     timeframe === "30d" ? stats?.summary_30d : stats?.summary_lifetime;
+  const activeCampaigns =
+    (timeframe === "30d" ? stats?.campaigns : stats?.campaigns_lifetime) ?? [];
 
   return (
     <DashboardShell>
@@ -362,7 +365,7 @@ export default function MarketingPage() {
                   <div className="px-5 py-4 border-b border-ivory-200 flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-charcoal-900">
-                        Meta Ad Campaigns ({stats?.campaigns?.length || 0})
+                        Meta Ad Campaigns ({activeCampaigns.length}) · {timeframe === "30d" ? "last 30 days" : "all time"}
                       </h3>
                       <p className="text-xs text-charcoal-500">
                         Live metrics pulled from Marketing Graph API v21.0
@@ -401,8 +404,8 @@ export default function MarketingPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-ivory-100">
-                        {stats?.campaigns && stats.campaigns.length > 0 ? (
-                          stats.campaigns.map((c) => (
+                        {activeCampaigns.length > 0 ? (
+                          activeCampaigns.map((c) => (
                             <tr key={c.id} className="hover:bg-ivory-50 transition-colors">
                               <td className="px-4 py-3 font-semibold text-charcoal-900 max-w-xs truncate">
                                 <div>{c.name}</div>

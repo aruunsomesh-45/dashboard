@@ -56,6 +56,12 @@ Deno.test({ ...opts, name: "Marketing campaigns API", fn: async (t) => {
     const winter = cs[1];
     assertEquals([winter.status, winter.spend_minor], ["paused", 3000]);
     assertEquals([winter.ctr, winter.cpc_minor, winter.roas], [0, null, 0]);
+
+    // All-time: the row from 45 days ago is included (99999 spend on top of the 30-day 20000).
+    const all = r.body.campaigns_lifetime;
+    assertEquals(all.map((c: any) => c.id), ["111", "222"]);
+    assertEquals(all[0].spend_minor, 119999);
+    assertEquals(all[1].spend_minor, 3000);
   });
 
   await t.step("a connected account with no ad-level rows yet returns an empty campaign list (not an error)", async () => {
@@ -64,5 +70,6 @@ Deno.test({ ...opts, name: "Marketing campaigns API", fn: async (t) => {
     const r = await hit(api, `/api/w/${E.slug}/b/${E.brand_id}/marketing/stats/`, { cookies: { "sb-access-token": E.token } });
     assertEquals(r.status, 200);
     assertEquals(r.body.campaigns, []);
+    assertEquals(r.body.campaigns_lifetime, []);
   });
 }});
