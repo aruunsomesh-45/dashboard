@@ -784,7 +784,11 @@ export default function ConnectAppsPage() {
                 {/* Action Footer */}
                 <div className="pt-4 border-t border-ivory-200 flex flex-wrap items-center justify-between gap-3 text-xs">
                   <div className="text-charcoal-400 text-[11px]">
-                    {app.last_synced_at ? (
+                    {app.status === "error" && app.last_error_message ? (
+                      <span className="text-red-700" title={app.last_error_message}>
+                        {app.last_error_message.length > 110 ? `${app.last_error_message.slice(0, 110)}…` : app.last_error_message}
+                      </span>
+                    ) : app.last_synced_at ? (
                       <span>
                         Synced {new Date(app.last_synced_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
