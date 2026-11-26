@@ -87,7 +87,12 @@ export function createHandler(deps: Deps) {
           const err = await safeJson(res);
           const detail = err?.errors ? JSON.stringify(err.errors) : `HTTP ${res.status}`;
           if (res.status === 401 || res.status === 403) {
-            await setIntegrationStatus(admin, integ.id, "error", `Shopify rejected the Admin API token (${res.status})`);
+            // 401: the token itself is not accepted. 403: the token works, but the app may not read this data.
+            const why = res.status === 401
+              ? "Shopify does not accept the access token. Check the Client ID and Client secret."
+              : "Shopify accepted the token but refused the data (403). The app needs the read_orders, read_customers and read_products permissions, a released version, and approval to read customer data.";
+            const said = typeof err?.errors === "string" ? ` Shopify said: "${err.errors.slice(0, 160)}".` : "";
+            await setIntegrationStatus(admin, integ.id, "error", `${why}${said}`);
           }
           throw new HttpError(502, `Shopify API error: ${detail}`, { upstream_status: res.status });
         }
