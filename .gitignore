@@ -59,3 +59,10 @@ e2e/results-demo/
 
 **/supabase/.temp/
 
+
+# Generated build, test and tool output (not source)
+frontend/tsconfig.tsbuildinfo
+serverless/tests/results/
+e2e/results-prod/
+e2e/test-results/
+supabase/.temp/
