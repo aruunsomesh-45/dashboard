@@ -1,6 +1,6 @@
 import { HttpError } from "./http.ts";
 import type { Deps } from "./deps.ts";
-import { fetchWithRetry, safeJson } from "./upstream.ts";
+import { fetchWithRetry } from "./upstream.ts";
 
 /**
  * Shopify Admin API token from the app's Client ID and Client secret (client credentials grant).
@@ -28,15 +28,17 @@ export async function exchangeShopifyToken(
     },
     { sleep: deps.sleep },
   );
-  const json = await safeJson(res);
+  // Shopify answers a bad Client ID with an HTML error page, so read the text and parse it only if it is JSON.
+  const raw = await res.text().catch(() => "");
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch { json = null; }
   const token = typeof json?.access_token === "string" ? json.access_token.trim() : "";
   if (!res.ok || !token) {
     if (res.status === 400 || res.status === 401 || res.status === 403) {
-      throw new HttpError(
-        401,
-        `Shopify rejected the Client ID or Client secret (${res.status}). Check both values, and that the app is installed on ${shopDomain}.`,
-        { upstream_status: res.status },
-      );
+      const reason = raw.includes("application_cannot_be_found")
+        ? "Shopify does not recognise this Client ID for that store. Copy the Client ID from the app's Settings page, and check that the app is installed on the store."
+        : `Shopify rejected the Client ID or Client secret (${res.status}). Check both values, and that the app is installed on ${shopDomain}.`;
+      throw new HttpError(401, reason, { upstream_status: res.status });
     }
     throw new HttpError(502, `Shopify token request failed (HTTP ${res.status})`, { upstream_status: res.status });
   }

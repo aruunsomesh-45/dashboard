@@ -61,6 +61,14 @@ Deno.test({ ...opts, name: "Shopify automatic token renewal", fn: async (t) => {
     assert(String(row.last_error_message).includes("Client secret"), row.last_error_message);
   });
 
+  await t.step("unknown Client ID (Shopify HTML error page) -> 401 with the 'not recognised' reason", async () => {
+    w.http.routes = [];
+    w.http.on(TOKEN_URL, () => new Response("<html><title>400 - Oauth error application_cannot_be_found</title></html>", { status: 400, headers: { "Content-Type": "text/html" } }));
+    const r = await call(h(), "shopify-sync", { token: A.token, body: body(A) });
+    assertEquals(r.status, 401);
+    assert(String(r.body.error).includes("does not recognise this Client ID"), JSON.stringify(r.body));
+  });
+
   await t.step("connection test with Client ID and secret: fresh token is used for the shop check", async () => {
     w.http.routes = [];
     w.http.on(TOKEN_URL, () => json({ access_token: "shpat_test_3", expires_in: 86399 }));
