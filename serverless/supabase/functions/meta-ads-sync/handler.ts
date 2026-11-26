@@ -65,9 +65,11 @@ export function createHandler(deps: Deps) {
     const body = await readJsonObject(req);
     const workspaceId = requireUuid(body.workspace_id, "workspace_id");
     const brandId = requireUuid(body.brand_id, "brand_id");
-    const days = clampInt(body.days, 30, 1, 365);
-    // A year of ad-level rows needs many pages; a 30-day window keeps the scheduled run short.
-    const maxPages = clampInt(body.max_pages, days > 30 ? 80 : 10, 1, 100);
+    // The window: `days` long, ending `end_offset_days` before today. The manual sync walks back through
+    // the year in 30-day windows, so each run stays well inside the function's time limit.
+    const days = clampInt(body.days, 30, 1, 90);
+    const endOffset = clampInt(body.end_offset_days, 0, 0, 3650);
+    const maxPages = clampInt(body.max_pages, 30, 1, 100);
 
     await authorizeSyncScope(caller, workspaceId, brandId, "meta_ads");
 
@@ -78,8 +80,9 @@ export function createHandler(deps: Deps) {
     if (!adAccountId || !token) throw new HttpError(400, "Meta Ads ad_account_id and access_token are required.");
 
     const ctx = { workspace_id: workspaceId, brand_id: brandId };
-    const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-    const until = new Date().toISOString().slice(0, 10);
+    const untilMs = Date.now() - endOffset * 86_400_000;
+    const since = new Date(untilMs - days * 86_400_000).toISOString().slice(0, 10);
+    const until = new Date(untilMs).toISOString().slice(0, 10);
     const params = new URLSearchParams({
       level: "account",
       time_increment: "1",

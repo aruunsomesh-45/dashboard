@@ -50,7 +50,22 @@ Deno.test({ ...opts, name: "Pre-deployment fixes", fn: async (t) => {
     assertEquals(await w.count("commerce_shipment", "awb='FIXAWB1' and brand_id=$1", [T.brand_id]), 1);
   });
 
+  await t.step("marketing sync: the window in the query is forwarded to meta-ads-sync", async () => {
+    await w.addIntegration(T, "meta_ads", { ad_account_id: "act_9", access_token: "EAAB_fix" }, "act_9");
+    w.http.routes = [];
+    w.http.on(/\/campaigns\?/, () => json({ data: [] }));
+    w.http.on(/insights\?level=/, () => json({ data: [] }));
+    const before = ww.edgeCalls.length;
+    const r = await hit(api, `/api/w/${T.slug}/b/${T.brand_id}/marketing/sync-now/?days=30&end_offset_days=60`, { method: "POST", cookies });
+    assertEquals(r.status, 200, JSON.stringify(r.body));
+    const call = ww.edgeCalls.slice(before).find((c) => c.fn === "meta-ads-sync");
+    assert(call, "meta-ads-sync was not called");
+    assertEquals([call!.body.days, call!.body.end_offset_days], [30, 60]);
+  });
+
   await t.step("plain sync (no body, e.g. the Sync button of another app) is forwarded without a waybill list", async () => {
+    w.http.routes = [];
+    w.http.on(/track\.delhivery\.com\/api\/v1\/packages\/json\//, () => json({ ShipmentData: [] }));
     const before = ww.edgeCalls.length;
     const r = await hit(api, `/api/w/${T.slug}/b/${T.brand_id}/logistics/sync-now`, { method: "POST", cookies, body: {} });
     assertEquals(r.status, 200, JSON.stringify(r.body));

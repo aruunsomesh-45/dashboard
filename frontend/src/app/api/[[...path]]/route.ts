@@ -48,6 +48,14 @@ const SYNC_FUNCTIONS: Record<string, string> = {
   "logistics/sync-now": "delhivery-sync",
 };
 
+/** Window for a manual Meta sync: `days` (1-90) ending `end_offset_days` before today. */
+function metaWindow(req: NextRequest): Record<string, number> {
+  const q = req.nextUrl.searchParams;
+  const days = Math.min(90, Math.max(1, parseInt(q.get("days") || "30", 10) || 30));
+  const endOffset = Math.min(3650, Math.max(0, parseInt(q.get("end_offset_days") || "0", 10) || 0));
+  return { days, end_offset_days: endOffset };
+}
+
 function notAvailable(feature: string) {
   return NextResponse.json(
     { error: `${feature} is not available in the serverless deployment yet.` },
@@ -127,8 +135,8 @@ async function handleRequest(req: NextRequest, rawPathParts: string[], method: s
           workspace_id: tenant.workspaceId,
           brand_id: tenant.brand!.id,
           ...(awbs ? { awbs } : {}),
-          // A manual Meta sync refreshes a full year, so the all-time view has real history.
-          ...(action === "marketing/sync-now" ? { days: 365 } : {}),
+          // The Meta sync runs one window at a time (the Marketing page walks back through the year).
+          ...(action === "marketing/sync-now" ? metaWindow(req) : {}),
         });
         return withSessionCookies(res, session);
       }

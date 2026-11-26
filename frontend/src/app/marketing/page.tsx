@@ -123,11 +123,18 @@ export default function MarketingPage() {
     setSyncError(null);
     try {
       if (!currentWorkspace || !currentBrand) throw new Error("No workspace or brand is selected.");
-      const res = await apiFetch<{ message?: string }>(
-        `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/`,
-        { method: "POST" }
-      );
-      setSyncNotice(res.message || "Meta Ads sync completed successfully.");
+      // A year of history is fetched as twelve 30-day windows, one after another. Each window is a
+      // complete sync run, so a slow window cannot leave a run half-finished.
+      const WINDOWS = 12;
+      for (let w = 0; w < WINDOWS; w++) {
+        const offset = w * 30;
+        setSyncNotice(`Syncing Meta Ads history: window ${w + 1} of ${WINDOWS}…`);
+        const res = await apiFetch<{ message?: string }>(
+          `/api/w/${currentWorkspace.slug}/b/${currentBrand.id}/marketing/sync-now/?days=30&end_offset_days=${offset}`,
+          { method: "POST" }
+        );
+        if (w === WINDOWS - 1) setSyncNotice(res.message || "Meta Ads history synced (last 12 months).");
+      }
       await loadStats();
     } catch (err: any) {
       setSyncError(`Sync failed: ${err?.message || "Failed to contact Meta API"}`);

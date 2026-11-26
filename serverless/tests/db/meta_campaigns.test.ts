@@ -92,6 +92,18 @@ Deno.test({ ...opts, name: "Meta campaign-level sync", fn: async (t) => {
     assertEquals(row.campaign_status, null);
   });
 
+  await t.step("a window (days, end_offset_days) asks Meta for exactly that date range", async () => {
+    w.http.routes = [];
+    w.http.calls = [];
+    w.http.on(/\/campaigns\?/, () => json({ data: [] }));
+    w.http.on(/insights\?level=/, () => json({ data: [] }));
+    const r = await call(h(), "meta-ads-sync", { token: A.token, body: body(A, { days: 30, end_offset_days: 30 }) });
+    assertEquals(r.status, 200, JSON.stringify(r.body));
+    const day = (offset: number) => new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10);
+    const tr = JSON.parse(new URL(w.http.calls.find((c) => c.url.includes("level=account"))!.url).searchParams.get("time_range")!);
+    assertEquals(tr, { since: day(60), until: day(30) });
+  });
+
   await t.step("a rejected token on the ad-level call fails the run and marks the connection in error", async () => {
     w.http.routes = [];
     w.http.on(/\/campaigns\?/, () => json(CAMPAIGNS));
