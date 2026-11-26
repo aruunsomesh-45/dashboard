@@ -746,6 +746,14 @@ export default function ConnectAppsPage() {
                           <span>Credentials are encrypted via AES-256-GCM before storage.</span>
                         </div>
 
+                        {(app.status === "error" || app.status === "disconnected") && (
+                          <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                            {app.status === "error"
+                              ? "Saved keys are never shown again, so the boxes are empty. Paste the current key(s) above, then press Save & Connect."
+                              : "Paste the keys above, then press Save & Connect."}
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between pt-1">
                           <button
                             type="button"
